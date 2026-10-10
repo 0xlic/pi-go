@@ -1,0 +1,52 @@
+import { copyToClipboard, type ExtensionCommandContext, type SessionInfo } from "@earendil-works/pi-coding-agent";
+import { buildCatalog } from "./catalog.ts";
+import { MetadataStore } from "./metadata-store.ts";
+import { normalizePath } from "./path-utils.ts";
+import { executeAction } from "./session-gateway.ts";
+import { listSessions } from "./session-repository.ts";
+import type { GoAction } from "./types.ts";
+import { GoSelector } from "./ui/go-selector.ts";
+import { loadWithProgress } from "./ui/load-with-progress.ts";
+
+export interface RuntimeGuard { active: boolean; startupConsumed: boolean }
+
+export async function openGo(ctx: ExtensionCommandContext, store: MetadataStore, guard: RuntimeGuard): Promise<void> {
+  if (ctx.mode !== "tui") { ctx.ui.notify("pi-go 仅支持交互式终端模式", "warning"); return; }
+  if (guard.active) { ctx.ui.notify("pi-go 已经打开", "info"); return; }
+  guard.active = true;
+  try {
+    const loaded = await loadWithProgress(ctx, async signal => {
+      await ctx.waitForIdle();
+      signal.throwIfAborted();
+      const metadata = await store.read();
+      signal.throwIfAborted();
+      const infos = await listSessions(ctx.sessionManager.getSessionDir(), metadata.extraSessionDirs ?? [], signal);
+      signal.throwIfAborted();
+      return { metadata, infos };
+    });
+    if (!loaded) return;
+    const cwd = normalizePath(ctx.cwd);
+    let { metadata } = loaded;
+    const { infos } = loaded;
+    const currentFile = ctx.sessionManager.getSessionFile();
+    if (currentFile && !infos.some(info => normalizePath(info.path) === normalizePath(currentFile))) {
+      // Pi's current empty session may not yet exist on disk. It is still safe to select without replacing it.
+      const now = new Date();
+      infos.push({ path: currentFile, id: ctx.sessionManager.getSessionId(), cwd,
+        name: ctx.sessionManager.getSessionName(), created: now, modified: now,
+        messageCount: 0, firstMessage: "", allMessagesText: "" } satisfies SessionInfo);
+    }
+    const catalog = () => buildCatalog(infos, metadata, cwd);
+    const action = await ctx.ui.custom<GoAction | null>((tui, theme, kb, done) => new GoSelector(tui, theme, kb, catalog(), cwd, {
+      pinProject: async (id, pinned) => { metadata = await store.patchProject(id, { pinned }); return catalog(); },
+      pinSession: async (key, pinned) => { metadata = await store.patchSession(key, { pinned }); return catalog(); },
+      rename: async (id, alias) => { metadata = await store.patchProject(id, { alias }); return catalog(); },
+      copyPath: copyToClipboard,
+    }, done));
+    if (!action) return;
+    await executeAction(ctx, action, store);
+    // Do not use ctx after session replacement.
+  } finally {
+    guard.active = false;
+  }
+}
