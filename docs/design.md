@@ -366,6 +366,7 @@ Ctrl+Y（Yank）复制项目目录；原 Ctrl+O 独立“打开目录”功能�
 - Alt+↑↓ 通过保留标识 pi-go:pinned-sessions 参与项目置顶组交换；MetadataStore 在锁内临时投影该条目，保存位置到独立字段，绝不写入 projects 路径映射。消失后保留位置元数据，供再次出现时使用。
 - Ctrl+P 在虚拟分组上只提示无法取消 pin；后端 patchProject() 也拒绝该保留标识。
 - 右侧范围为全局 pinned sessions，显示其所属项目；标题搜索、会话排序、取消 pin、恢复和复制真实项目 cwd 保持原规则。
+- 分组与原项目列表是同一 Catalog.sessions 的不同过滤视图；同一 file key / projectId 不复制、不迁移。两处均使用 session.pinOrder 排序并调用相同 movePinned("session") 路径，任一处调整后另一处同步显示。
 - 最后一个会话取消 pin 后 refresh() 移除分组，若正在选中该分组则按现有可见列表回退选择，清空右侧搜索。左栏按分组名称过滤而非按子会话名称过滤。
 - 分组内“新建会话”仍先确认 cwd；虚拟分组自身不可复制路径或重命名。
 

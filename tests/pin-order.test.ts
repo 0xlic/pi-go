@@ -164,3 +164,24 @@ test("virtual group vanishes immediately after its last actual session is unpinn
   assert.ok(!f.selector.vm.projectRows.some(row => row.kind === "pinned-sessions"));
   assert.equal(f.selector.vm.selectedProject.kind, "all");
 });
+
+test("pinned sessions remain in original project and virtual group, with shared reorderable order", async t => {
+  const f = await fixture(t);
+  f.selector.vm.activePane = "sessions";
+  assert.deepEqual(sessions(f.selector), ["/s/a", "/s/c", "/s/ordinary"]);
+  f.selector.vm.move(1);
+  f.selector.handleInput("\x1b[1;3B"); await f.settled();
+  assert.deepEqual(sessions(f.selector), ["/s/c", "/s/a", "/s/ordinary"]);
+  f.selector.vm.selectProject({ kind: "pinned-sessions" });
+  assert.deepEqual(sessions(f.selector), ["/s/c", "/s/b", "/s/a"]);
+  f.selector.vm.move(3);
+  f.selector.handleInput("\x1b[1;3A"); await f.settled();
+  f.selector.handleInput("\x1b[1;3A"); await f.settled();
+  assert.deepEqual(sessions(f.selector), ["/s/a", "/s/c", "/s/b"]);
+  f.selector.vm.selectProject({ kind: "project", id: "/work/a" });
+  assert.deepEqual(sessions(f.selector), ["/s/a", "/s/c", "/s/ordinary"]);
+  const state = await f.store.read();
+  assert.equal(Object.keys(state.sessions).length, 3);
+  assert.equal(state.sessions["/s/a"].pinned, true);
+  assert.equal(f.selector.vm.catalog.sessions.get("/s/a")?.projectId, "/work/a");
+});
