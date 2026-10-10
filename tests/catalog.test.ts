@@ -35,20 +35,27 @@ test("fixed rows, pin-first recency and filtering of pinned items", () => {
   assert.deepEqual(vm.sessionRows, [{ kind: "new" }, { kind: "session", key: "/sessions/a" }, { kind: "session", key: "/sessions/c" }]);
   vm.activePane = "sessions"; vm.setQuery("插件");
   assert.deepEqual(vm.sessionRows, [{ kind: "new" }, { kind: "session", key: "/sessions/c" }]);
-  vm.activePane = "projects"; vm.setQuery("登录");
+  vm.activePane = "projects"; vm.setQuery("/work/b");
   assert.deepEqual(vm.projectRows, [{ kind: "all" }, { kind: "project", id: "/work/b" }]);
   assert.equal(vm.selectedProject.kind, "all");
   assert.equal(vm.sessionQuery, "");
 });
 
-test("left searches paths, aliases and session names, not message bodies", () => {
+test("left searches only project paths and aliases; session titles and bodies do not match", () => {
   const meta = emptyMetadata(); meta.projects["/work/a"] = { alias: "My Plugin" };
   const vm = new ViewModel(buildCatalog(infos, meta, "/work/a"), "/work/a");
-  for (const query of ["mypl", "/wk/a", "修搜"]) {
+  for (const query of ["mypl", "/wk/a"]) {
     vm.setQuery(query);
     assert.deepEqual(vm.projectRows, [{ kind: "all" }, { kind: "project", id: "/work/a" }]);
   }
-  vm.setQuery("secret body"); assert.equal(vm.projectRows.length, 1);
+  for (const query of ["修搜", "插件设计", "登录流程", "secret body"]) {
+    vm.setQuery(query);
+    assert.deepEqual(vm.projectRows, [{ kind: "all" }]);
+  }
+  vm.selectProject({ kind: "all" });
+  vm.activePane = "sessions";
+  vm.setQuery("修搜");
+  assert.deepEqual(vm.sessionRows, [{ kind: "new" }, { kind: "session", key: "/sessions/a" }]);
 });
 
 test("global search independent from left filter; changing project clears only right query", () => {

@@ -33,7 +33,6 @@ export function buildCatalog(infos: readonly SessionInfo[], metadata: Metadata, 
     sessions.set(key, { key, projectId: project.id, name, pinned: !!meta?.pinned,
       lastUsedAt: meta?.lastUsedAt ?? (info.modified.getTime() || 0), searchTitle: searchText(name) });
     project.sessionKeys.push(key);
-    project.searchFields.push(searchText(name));
   }
   // Explicit visit records take precedence; file activity is only a fallback.
   for (const project of projects.values()) {

@@ -39,7 +39,7 @@ export class GoSelector implements Component, Focusable {
     private keybindings: KeybindingsManager, catalog: Catalog, private cwd: string,
     private callbacks: SelectorCallbacks, private done: (action: GoAction | null) => void) {
     this.vm = new ViewModel(catalog, normalizePath(cwd));
-    this.projectInput = new Input({ prompt: "项目 › ", placeholder: "名称 / 路径 / 会话名", placeholderStyle: s => theme.fg("dim", s) });
+    this.projectInput = new Input({ prompt: "项目 › ", placeholder: "项目名称 / 目录路径", placeholderStyle: s => theme.fg("dim", s) });
     this.sessionInput = new Input({ prompt: "会话 › ", placeholder: "会话名称", placeholderStyle: s => theme.fg("dim", s) });
   }
   get focused(): boolean { return this.hasFocus; }
