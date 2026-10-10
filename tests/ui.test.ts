@@ -84,3 +84,27 @@ test("global session selection copies its project cwd, never session file path",
   assert.deepEqual(actions, []);
   assert.doesNotMatch(selector.render(100).join("\n"), /\/s\/a/);
 });
+
+test("typing a unique project hides all-project row and Tab immediately searches its sessions", () => {
+  const { selector } = fixture();
+  selector.vm.selectProject({ kind: "all" });
+  selector.handleInput("/work/a");
+  assert.deepEqual(selector.vm.projectRows, [{ kind: "project", id: "/work/a" }]);
+  assert.equal(selector.vm.project?.cwd, "/work/a");
+  assert.doesNotMatch(selector.render(100).join("\n"), /所有项目/);
+  selector.handleInput("\t"); selector.handleInput("中文");
+  assert.equal(selector.vm.sessionRows.length, 2);
+});
+
+test("empty project results render zero counts and Enter cannot create or restore", () => {
+  const { selector, actions } = fixture();
+  selector.handleInput("missing-project");
+  selector.handleInput("\x1b[B"); selector.handleInput("\r");
+  selector.handleInput("\t"); selector.handleInput("\x1b[B"); selector.handleInput("\r");
+  assert.deepEqual(actions, []);
+  const screen = selector.render(100).join("\n");
+  assert.match(screen, /无匹配项目/);
+  assert.match(screen, /0 个项目/);
+  assert.match(screen, /0 个会话/);
+  assert.doesNotMatch(screen, /新建会话|所有项目/);
+});

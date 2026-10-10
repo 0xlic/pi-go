@@ -132,7 +132,8 @@ export class GoSelector implements Component, Focusable {
         void this.run(async () => { this.vm.catalog = await this.callbacks.pinSession(session.key, !session.pinned); this.vm.refresh(); });
       } else this.message = "固定入口不能 pin";
     } else if (this.is(data, "tui.select.confirm", Key.enter)) {
-      if (this.vm.activePane === "projects") this.vm.activePane = "sessions";
+      if (this.vm.selectedProject.kind === "none") this.message = "没有匹配项目，请调整项目搜索";
+      else if (this.vm.activePane === "projects") this.vm.activePane = "sessions";
       else if (this.vm.session) { this.done({ kind: "restore", path: this.vm.session.key }); return; }
       else if (this.vm.project) { this.done({ kind: "create", cwd: this.vm.project.cwd }); return; }
       else this.openDirectory();
@@ -175,7 +176,8 @@ export class GoSelector implements Component, Focusable {
     for (let offset = 0; offset < this.pageHeight; offset++) {
       const p = this.vm.projectRows[this.vm.projectScroll + offset];
       const s = this.vm.sessionRows[this.vm.sessionScroll + offset];
-      let left = "", right = "";
+      let left = offset === 0 && !this.vm.projectRows.length ? this.theme.fg("dim", "无匹配项目") : "";
+      let right = offset === 0 && !this.vm.sessionRows.length ? this.theme.fg("dim", "请调整项目搜索") : "";
       if (p) {
         const project = p.kind === "project" ? this.vm.catalog.projects.get(p.id) : undefined;
         const selected = p.kind === "all" ? this.vm.selectedProject.kind === "all" : this.vm.project?.id === p.id;
@@ -191,10 +193,10 @@ export class GoSelector implements Component, Focusable {
       }
       lines.push(pair(left, right));
     }
-    lines.push(pair(this.theme.fg("dim", `${this.vm.projectRows.length - 1} 个项目`), this.theme.fg("dim", `${this.vm.sessionRows.length - 1} 个会话`)));
+    lines.push(pair(this.theme.fg("dim", `${this.vm.projectRows.filter(row => row.kind === "project").length} 个项目`), this.theme.fg("dim", `${this.vm.sessionRows.filter(row => row.kind === "session").length} 个会话`)));
     const detail = this.vm.activePane === "sessions" && this.vm.session
       ? this.vm.catalog.projects.get(this.vm.session.projectId)?.cwd ?? "项目目录不可用"
-      : this.vm.project?.cwd ?? "所有项目 · 全局会话搜索";
+      : this.vm.project?.cwd ?? (this.vm.selectedProject.kind === "none" ? "没有匹配项目" : "所有项目 · 全局会话搜索");
     lines.push(frame(this.theme.fg(this.message ? "warning" : "dim", this.message || safeText(detail))));
     lines.push(border("╰", "╯"));
     return lines;

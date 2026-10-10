@@ -219,12 +219,12 @@ type SessionRow = { kind: "new" } | { kind: "session"; key: SessionKey };
 
 ### 6.2 联动规则（采用建议默认值）
 
-- 左侧 query 只过滤普通项目行，“所有项目”恒定保留。
+- 左侧 query 为空（含纯空白）时显示“所有项目”；非空时隐藏该入口，仅显示匹配项目。
 - 右侧 scope 由当前选中的项目决定。
-- 选 all 时右侧范围始终为全局，不受左侧 query 限制。
+- 空项目搜索下选 all 时右侧范围为全局；输入项目搜索词后自动进入实际匹配项目范围。
 - 选具体项目时右侧范围为该项目全部 sessions。
 - 左侧不匹配 session 名；项目和会话搜索索引完全分离。
-- “新建会话”恒定保留，不参与模糊匹配。
+- 有有效项目范围时“新建会话”保留且不参与模糊匹配；无匹配项目时右侧列表为空，不允许恢复或创建。
 
 ### 6.3 稳定排序
 
@@ -236,7 +236,7 @@ type SessionRow = { kind: "new" } | { kind: "session"; key: SessionKey };
 
 - session effectiveLastUsedAt = 元数据 lastUsedAt，否则 updatedAt，否则 0。
 - 项目 effectiveLastUsedAt = 项目 lastUsedAt 与其子 session lastUsedAt 的最大值；都没有时取子 session updatedAt 最大值。
-- 虚拟入口排序后插入第一行。
+- 虚拟入口符合显示条件时，排序后插入第一行。
 - 浏览、搜索、pin、重命名不更新访问时间。
 - 只有创建/恢复成功才更新 session 和所属项目的 lastUsedAt。
 
@@ -245,7 +245,7 @@ type SessionRow = { kind: "new" } | { kind: "session"; key: SessionKey };
 列表变化优先保留当前选中 key，而不是数组下标。
 
 - 当前 key 仍可见：保持选择并修正滚动范围。
-- 当前项目不再可见：回到“所有项目”，清空右侧 query 并重置右侧选择。
+- 当前项目不再可见：选中当前列表第一个匹配项目；没有结果时进入 none 空选择，清空右侧 query 并重置右侧选择。none 不属于 all，不展示全局 session。
 - 项目 key 实际发生变化：清空右侧 query，右侧选择“新建会话”。
 - 右侧过滤使当前 session 不可见：选择“新建会话”。
 - pin 导致排序变化：保持当前条目选择，滚动使其可见。
@@ -259,7 +259,7 @@ interface SelectorState {
   activePane: "projects" | "sessions";
   projectQuery: string;
   sessionQuery: string;
-  selectedProject: ProjectRow;
+  selectedProject: ProjectRow | { kind: "none" };
   selectedSession: SessionRow;
   projectScroll: number;
   sessionScroll: number;
@@ -306,7 +306,7 @@ interface SelectorState {
 - 使用 visibleWidth、truncateToWidth 等处理中文、emoji 和 ANSI。
 - 使用注入的 theme，不缓存永久的带主题颜色字符串。
 - 数据更新后 invalidate 并 requestRender，不在 render 中读文件。
-- 重建可见行只对可视区域渲染；空结果用说明文字，但固定入口仍存在。
+- 重建可见行只对可视区域渲染；无匹配项目时左栏显示空结果、右栏提示调整项目搜索，Enter 不执行动作。
 
 ## 8. 操作流程
 
@@ -406,7 +406,7 @@ src/types.ts                   自有类型
 - 路径规范化、同 basename 不合并、符号链接策略。
 - 按项目名/目录路径匹配项目；会话名称和正文不得命中项目。
 - 全局与具体项目 session 搜索范围。
-- pin 不绕过过滤，固定入口不受过滤。
+- pin 不绕过过滤；非空项目搜索隐藏 all，唯一匹配自动选中；无结果不回退全局，清空搜索恢复 all。
 - pin/时间/稳定 key 排序和时间缺失回退。
 - 项目实际改变才清空右侧 query。
 - 过滤、pin、重命名后的 key 保留与选择修正。
