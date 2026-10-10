@@ -11,6 +11,7 @@ export interface SelectorCallbacks {
   pinSession(key: string, pinned: boolean): Promise<Catalog>;
   rename(id: string, alias: string | undefined): Promise<Catalog>;
   copyPath(cwd: string): Promise<void>;
+  movePin(kind: "project" | "session", key: string, neighbor: string): Promise<Catalog>;
 }
 interface Form {
   kind: "rename" | "directory";
@@ -63,6 +64,23 @@ export class GoSelector implements Component, Focusable {
     catch (error) { this.message = safeText(error instanceof Error ? error.message : String(error)); }
     finally { this.busy = false; this.changed(); }
   }
+  private movePin(delta: -1 | 1): void {
+    const projectPane = this.vm.activePane === "projects";
+    const entry = projectPane ? this.vm.project : this.vm.session;
+    if (!entry?.pinned) { this.message = "只能移动已 pin 的项目或会话"; return; }
+    const kind = projectPane ? "project" : "session";
+    const key = projectPane ? this.vm.project!.id : this.vm.session!.key;
+    const visible = projectPane
+      ? this.vm.projectRows.flatMap(row => row.kind === "project" && this.vm.catalog.projects.get(row.id)?.pinned ? [row.id] : [])
+      : this.vm.sessionRows.flatMap(row => row.kind === "session" && this.vm.catalog.sessions.get(row.key)?.pinned ? [row.key] : []);
+    const neighbor = visible[visible.indexOf(key) + delta];
+    if (!neighbor) { this.message = delta < 0 ? "已是首个可见置顶条目" : "已是最后一个可见置顶条目"; return; }
+    void this.run(async () => {
+      this.vm.catalog = await this.callbacks.movePin(kind, key, neighbor);
+      this.vm.refresh();
+    }, "置顶顺序已保存");
+  }
+
   private openDirectory(): void {
     const input = new Input({ prompt: "目录 › " });
     input.setValue(this.cwd + (this.cwd.endsWith(sep) ? "" : sep));
@@ -106,6 +124,8 @@ export class GoSelector implements Component, Focusable {
     }
     if (this.is(data, "tui.select.cancel", Key.escape)) { this.done(null); return; }
     if (matchesKey(data, Key.tab) || matchesKey(data, Key.shift("tab"))) this.vm.togglePane();
+    else if (matchesKey(data, Key.alt("up"))) this.movePin(-1);
+    else if (matchesKey(data, Key.alt("down"))) this.movePin(1);
     else if (this.is(data, "tui.select.up", Key.up)) this.vm.move(-1);
     else if (this.is(data, "tui.select.down", Key.down)) this.vm.move(1);
     else if (matchesKey(data, Key.pageUp)) this.vm.move(-this.pageHeight);
@@ -165,7 +185,7 @@ export class GoSelector implements Component, Focusable {
     const pair = (left: string, right: string) => frame(`${cell(left, leftWidth)} ${fg("│")} ${cell(right, rightWidth)}`);
     lines.push(pair(this.projectInput.render(leftWidth)[0], this.sessionInput.render(rightWidth)[0]));
     lines.push(frame(this.theme.fg("dim", "Tab 切换 · ↑↓ 选择 · Enter 打开 · Esc 取消")));
-    lines.push(frame(this.theme.fg("dim", "Ctrl+P pin · Ctrl+R 项目重命名 · Ctrl+Y 复制项目路径")));
+    lines.push(frame(this.theme.fg("dim", "Ctrl+P pin · Alt+↑↓ 移动置顶 · Ctrl+R 重命名 · Ctrl+Y 复制路径")));
     lines.push(pair(fg("─".repeat(leftWidth)), fg("─".repeat(rightWidth))));
     this.pageHeight = Math.max(2, Math.min(14, this.tui.terminal.rows - 11));
     this.vm.ensureVisible(this.pageHeight);

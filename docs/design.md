@@ -231,7 +231,7 @@ type SessionRow = { kind: "new" } | { kind: "session"; key: SessionKey };
 过滤后对普通数据使用以下 tuple：
 
 ```text
-(pinned 优先, effectiveLastUsedAt 降序, displayName/title, 唯一 key)
+(pinned 优先, pinned 条目的 pinOrder 升序, effectiveLastUsedAt 降序, displayName/title, 唯一 key)
 ```
 
 - session effectiveLastUsedAt = 元数据 lastUsedAt，否则 updatedAt，否则 0。
@@ -280,6 +280,7 @@ interface SelectorState {
 | Enter，右栏新建 | 返回当前项目新建动作；all 下先选目录 |
 | Esc | 子步骤返回；主界面取消 |
 | Ctrl+P | pin/取消 pin 当前实际项目或 session |
+| Alt+↑ / Alt+↓ | 将当前 pinned 条目与相邻可见置顶条目交换位置并保存 |
 | Ctrl+R | 左栏重命名项目；右栏第一版不绑定 |
 | Ctrl+Y（Yank） | 复制项目 cwd 到剪贴板，不关闭界面 |
 | PageUp / PageDown | 按活动列表可视页移动（可选） |
@@ -348,7 +349,16 @@ Ctrl+Y（Yank）复制项目目录；原 Ctrl+O 独立“打开目录”功能�
 
 目录输入和浏览仅保留在“所有项目 → 新建会话”的目录确认步骤中，不再提供独立登记目录操作。
 
-### 8.4 pin 与重命名
+### 8.4 置顶手动排序
+
+- ProjectMeta / SessionMeta 和 catalog 条目增加可选 `pinOrder`（非负安全整数），旧状态无需迁移。
+- 未保存位置的置顶组使用最近使用排序；手动移动时为完整置顶组保存连续位置，之后不受访问时间影响。普通条目忽略 pinOrder。
+- 活动栏按当前可见结果找出 pinned 邻居，排除“所有项目”“新建会话”及普通条目；Alt+↑ / Alt+↓ 仅交换这两个 key 的全局位置，保持隐藏条目的位置。
+- MetadataStore.movePinned() 在跨进程锁内重读状态，以最新已保存顺序为准，校验双方仍 pinned，再分配顺序。仅修改 pinOrder，保留名称、pin 和访问时间。
+- 排序成功后重新筛选并保留当前 key、焦点、两个搜索词；失败提示。边界不循环、不写入。
+- 取消 pin 清除位置；新 pin 或重新 pin 排在已有手动排序条目之后。
+
+### 8.5 pin 与重命名
 
 - 虚拟入口不可操作，显示轻量提示。
 - pin 修改和重命名均先提交 MetadataStore，再更新视图；失败保持原状态并提示。

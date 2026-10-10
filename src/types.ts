@@ -1,11 +1,13 @@
 export interface ProjectMeta {
   alias?: string;
   pinned?: boolean;
+  pinOrder?: number;
   lastUsedAt?: number;
   registered?: boolean;
 }
 export interface SessionMeta {
   pinned?: boolean;
+  pinOrder?: number;
   lastUsedAt?: number;
 }
 export interface Metadata {
@@ -20,6 +22,7 @@ export interface Project {
   name: string;
   pinned: boolean;
   lastUsedAt: number;
+  pinOrder?: number;
   sessionKeys: string[];
   searchFields: string[];
 }
@@ -29,6 +32,7 @@ export interface GoSession {
   name: string;
   pinned: boolean;
   lastUsedAt: number;
+  pinOrder?: number;
   searchTitle: string;
 }
 export interface Catalog {

@@ -21,6 +21,7 @@ function fixture() {
     pinSession: async (id, pinned) => { meta.sessions[id] = { ...meta.sessions[id], pinned }; return catalog(); },
     rename: async (id, alias) => { meta.projects[id] = { ...meta.projects[id], alias }; return catalog(); },
     copyPath: async cwd => { copied.push(cwd); },
+    movePin: async () => catalog(),
   };
   const selector = new GoSelector({ requestRender: () => {}, terminal: { rows: 24 } } as Pick<TUI, "requestRender" | "terminal">,
     theme, kb, catalog(), "/work/a", callbacks, action => actions.push(action));

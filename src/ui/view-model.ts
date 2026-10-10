@@ -1,9 +1,7 @@
 import { matches } from "../search.ts";
+import { compareEntries } from "../sort.ts";
 import type { Catalog, Project, ProjectRow, GoSession, SessionRow } from "../types.ts";
 
-function compare(a: { pinned: boolean; lastUsedAt: number; name: string }, b: typeof a): number {
-  return Number(b.pinned) - Number(a.pinned) || b.lastUsedAt - a.lastUsedAt || a.name.localeCompare(b.name);
-}
 type ProjectSelection = ProjectRow | { kind: "none" };
 function projectKey(row: ProjectSelection): string { return row.kind === "project" ? row.id : row.kind; }
 function sessionKey(row: SessionRow): string { return row.kind === "new" ? "new" : row.key; }
@@ -46,7 +44,7 @@ export class ViewModel {
   }
   refresh(): void {
     const projects = [...this.catalog.projects.values()].filter(p => matches(this.projectQuery, p.searchFields))
-      .sort((a, b) => compare(a, b) || a.id.localeCompare(b.id));
+      .sort((a, b) => compareEntries(a, b) || a.id.localeCompare(b.id));
     this.projectRows = projects.map(p => ({ kind: "project" as const, id: p.id }));
     if (!this.projectQuery.trim()) this.projectRows.unshift({ kind: "all" });
     if (!this.projectRows.some(row => projectKey(row) === projectKey(this.selectedProject))) {
@@ -61,7 +59,7 @@ export class ViewModel {
     const selected = this.selectedProject;
     const sessions = [...this.catalog.sessions.values()]
       .filter(s => (selected.kind === "all" || (selected.kind === "project" && s.projectId === selected.id)) && matches(this.sessionQuery, [s.searchTitle]))
-      .sort((a, b) => compare(a, b) || a.key.localeCompare(b.key));
+      .sort((a, b) => compareEntries(a, b) || a.key.localeCompare(b.key));
     this.sessionRows = selected.kind === "none" ? [] : [{ kind: "new" }, ...sessions.map(s => ({ kind: "session" as const, key: s.key }))];
     if (!this.sessionRows.some(row => sessionKey(row) === sessionKey(this.selectedSession))) this.selectedSession = { kind: "new" };
   }

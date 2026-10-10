@@ -3,6 +3,7 @@ import { buildCatalog } from "./catalog.ts";
 import { MetadataStore } from "./metadata-store.ts";
 import { normalizePath } from "./path-utils.ts";
 import { executeAction } from "./session-gateway.ts";
+import { compareEntries } from "./sort.ts";
 import { listSessions } from "./session-repository.ts";
 import type { GoAction } from "./types.ts";
 import { GoSelector } from "./ui/go-selector.ts";
@@ -38,10 +39,18 @@ export async function openGo(ctx: ExtensionCommandContext, store: MetadataStore,
     }
     const catalog = () => buildCatalog(infos, metadata, cwd);
     const action = await ctx.ui.custom<GoAction | null>((tui, theme, kb, done) => new GoSelector(tui, theme, kb, catalog(), cwd, {
-      pinProject: async (id, pinned) => { metadata = await store.patchProject(id, { pinned }); return catalog(); },
-      pinSession: async (key, pinned) => { metadata = await store.patchSession(key, { pinned }); return catalog(); },
+      pinProject: async (id, pinned) => { metadata = await store.patchProject(id, { pinned, pinOrder: undefined }); return catalog(); },
+      pinSession: async (key, pinned) => { metadata = await store.patchSession(key, { pinned, pinOrder: undefined }); return catalog(); },
       rename: async (id, alias) => { metadata = await store.patchProject(id, { alias }); return catalog(); },
       copyPath: copyToClipboard,
+      movePin: async (kind, key, neighbor) => {
+        const current = catalog();
+        const fallback = kind === "project"
+          ? [...current.projects.values()].filter(p => p.pinned).sort((a, b) => compareEntries(a, b) || a.id.localeCompare(b.id)).map(p => p.id)
+          : [...current.sessions.values()].filter(s => s.pinned).sort((a, b) => compareEntries(a, b) || a.key.localeCompare(b.key)).map(s => s.key);
+        metadata = await store.movePinned(kind, key, neighbor, fallback);
+        return catalog();
+      },
     }, done));
     if (!action) return;
     await executeAction(ctx, action, store);

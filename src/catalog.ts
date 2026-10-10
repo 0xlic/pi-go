@@ -14,7 +14,7 @@ export function buildCatalog(infos: readonly SessionInfo[], metadata: Metadata, 
     const meta = metadata.projects[id];
     const name = safeText(meta?.alias || basename(id) || id);
     const project: Project = { id, cwd: id, name, pinned: !!meta?.pinned, lastUsedAt: meta?.lastUsedAt ?? 0,
-      sessionKeys: [], searchFields: [searchText(name), searchText(id)] };
+      pinOrder: meta?.pinOrder, sessionKeys: [], searchFields: [searchText(name), searchText(id)] };
     projects.set(id, project);
     return project;
   }
@@ -31,7 +31,7 @@ export function buildCatalog(infos: readonly SessionInfo[], metadata: Metadata, 
     const meta = metadata.sessions[key];
     const name = safeText(info.name?.trim() || info.firstMessage?.trim() || `未命名会话 ${info.id.slice(0, 8)}`);
     sessions.set(key, { key, projectId: project.id, name, pinned: !!meta?.pinned,
-      lastUsedAt: meta?.lastUsedAt ?? (info.modified.getTime() || 0), searchTitle: searchText(name) });
+      pinOrder: meta?.pinOrder, lastUsedAt: meta?.lastUsedAt ?? (info.modified.getTime() || 0), searchTitle: searchText(name) });
     project.sessionKeys.push(key);
   }
   // Explicit visit records take precedence; file activity is only a fallback.

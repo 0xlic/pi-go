@@ -18,6 +18,7 @@ function validate(value: unknown): Metadata {
     for (const item of Object.values(entries)) {
       if (!isRecord(item) ||
           (item.pinned !== undefined && typeof item.pinned !== "boolean") ||
+          (item.pinOrder !== undefined && (typeof item.pinOrder !== "number" || !Number.isSafeInteger(item.pinOrder) || item.pinOrder < 0)) ||
           (item.lastUsedAt !== undefined && (typeof item.lastUsedAt !== "number" || !Number.isFinite(item.lastUsedAt) || item.lastUsedAt < 0)) ||
           (section === "projects" && ((item.alias !== undefined && typeof item.alias !== "string") ||
           (item.registered !== undefined && typeof item.registered !== "boolean")))) {
@@ -92,6 +93,25 @@ export class MetadataStore {
   patchSession(key: string, patch: Partial<SessionMeta>): Promise<Metadata> {
     return this.update(s => { s.sessions[key] = { ...s.sessions[key], ...patch }; });
   }
+  movePinned(kind: "project" | "session", key: string, neighbor: string, fallbackOrder: string[]): Promise<Metadata> {
+    return this.update(state => {
+      const entries = kind === "project" ? state.projects : state.sessions;
+      if (!entries[key]?.pinned || !entries[neighbor]?.pinned || key === neighbor) {
+        throw new Error("只能移动已 pin 的条目；状态已变化，请重新打开选择器");
+      }
+      const fallback = new Map(fallbackOrder.map((id, index) => [id, index]));
+      const order = Object.keys(entries).filter(id => entries[id].pinned).sort((a, b) => {
+        const left = entries[a].pinOrder ?? Infinity, right = entries[b].pinOrder ?? Infinity;
+        if (left !== right) return left - right;
+        const ai = fallback.get(a) ?? Infinity, bi = fallback.get(b) ?? Infinity;
+        return (ai !== bi ? ai - bi : 0) || a.localeCompare(b);
+      });
+      const from = order.indexOf(key), to = order.indexOf(neighbor);
+      [order[from], order[to]] = [order[to], order[from]];
+      order.forEach((id, index) => { entries[id] = { ...entries[id], pinOrder: index }; });
+    });
+  }
+
   visit(projectId: string, key: string | undefined, time = Date.now()): Promise<Metadata> {
     return this.update(s => {
       s.projects[projectId] = { ...s.projects[projectId], registered: true, lastUsedAt: time };
