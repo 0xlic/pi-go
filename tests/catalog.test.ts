@@ -31,7 +31,7 @@ test("fixed rows, pin-first recency and filtering of pinned items", () => {
   meta.projects["/work/a"] = { pinned: true };
   meta.sessions["/sessions/a"] = { pinned: true };
   const vm = new ViewModel(buildCatalog(infos, meta, "/work/a"), "/work/a");
-  assert.deepEqual(vm.projectRows, [{ kind: "all" }, { kind: "project", id: "/work/a" }, { kind: "project", id: "/work/b" }]);
+  assert.deepEqual(vm.projectRows, [{ kind: "all" }, { kind: "project", id: "/work/a" }, { kind: "pinned-sessions" }, { kind: "project", id: "/work/b" }]);
   assert.deepEqual(vm.sessionRows, [{ kind: "new" }, { kind: "session", key: "/sessions/a" }, { kind: "session", key: "/sessions/c" }]);
   vm.activePane = "sessions"; vm.setQuery("插件");
   assert.deepEqual(vm.sessionRows, [{ kind: "new" }, { kind: "session", key: "/sessions/c" }]);

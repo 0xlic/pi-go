@@ -1,5 +1,5 @@
 import { copyToClipboard, type ExtensionCommandContext, type SessionInfo } from "@earendil-works/pi-coding-agent";
-import { buildCatalog } from "./catalog.ts";
+import { buildCatalog, projectEntries } from "./catalog.ts";
 import { MetadataStore } from "./metadata-store.ts";
 import { normalizePath } from "./path-utils.ts";
 import { executeAction } from "./session-gateway.ts";
@@ -46,7 +46,7 @@ export async function openGo(ctx: ExtensionCommandContext, store: MetadataStore,
       movePin: async (kind, key, neighbor) => {
         const current = catalog();
         const fallback = kind === "project"
-          ? [...current.projects.values()].filter(p => p.pinned).sort((a, b) => compareEntries(a, b) || a.id.localeCompare(b.id)).map(p => p.id)
+          ? projectEntries(current).filter(p => p.pinned).sort((a, b) => compareEntries(a, b) || a.id.localeCompare(b.id)).map(p => p.id)
           : [...current.sessions.values()].filter(s => s.pinned).sort((a, b) => compareEntries(a, b) || a.key.localeCompare(b.key)).map(s => s.key);
         metadata = await store.movePinned(kind, key, neighbor, fallback);
         return catalog();

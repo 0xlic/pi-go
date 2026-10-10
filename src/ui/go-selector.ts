@@ -2,7 +2,7 @@ import type { KeybindingsManager, Theme } from "@earendil-works/pi-coding-agent"
 import { Input, Key, matchesKey, truncateToWidth, visibleWidth, type Component, type Focusable, type TUI } from "@earendil-works/pi-tui";
 import { sep } from "node:path";
 import { aliasFromInput, assertDirectory, normalizePath, safeText } from "../path-utils.ts";
-import type { Catalog, GoAction } from "../types.ts";
+import { PINNED_SESSIONS_GROUP_ID, type Catalog, type GoAction } from "../types.ts";
 import { DirectoryBrowser } from "./directory-browser.ts";
 import { ViewModel } from "./view-model.ts";
 
@@ -66,12 +66,13 @@ export class GoSelector implements Component, Focusable {
   }
   private movePin(delta: -1 | 1): void {
     const projectPane = this.vm.activePane === "projects";
-    const entry = projectPane ? this.vm.project : this.vm.session;
+    const entry = projectPane ? this.vm.projectEntry : this.vm.session;
     if (!entry?.pinned) { this.message = "只能移动已 pin 的项目或会话"; return; }
     const kind = projectPane ? "project" : "session";
-    const key = projectPane ? this.vm.project!.id : this.vm.session!.key;
+    const key = projectPane ? this.vm.projectEntry!.id : this.vm.session!.key;
     const visible = projectPane
-      ? this.vm.projectRows.flatMap(row => row.kind === "project" && this.vm.catalog.projects.get(row.id)?.pinned ? [row.id] : [])
+      ? this.vm.projectRows.flatMap(row => row.kind === "pinned-sessions" ? [PINNED_SESSIONS_GROUP_ID]
+        : row.kind === "project" && this.vm.catalog.projects.get(row.id)?.pinned ? [row.id] : [])
       : this.vm.sessionRows.flatMap(row => row.kind === "session" && this.vm.catalog.sessions.get(row.key)?.pinned ? [row.key] : []);
     const neighbor = visible[visible.indexOf(key) + delta];
     if (!neighbor) { this.message = delta < 0 ? "已是首个可见置顶条目" : "已是最后一个可见置顶条目"; return; }
@@ -143,10 +144,12 @@ export class GoSelector implements Component, Focusable {
       if (project) {
         const input = new Input({ prompt: "名称 › " }); input.setValue(project.name);
         this.form = { kind: "rename", input, projectId: project.id };
-      } else this.message = "所有项目不能重命名";
+      } else this.message = "虚拟分组不能重命名";
     } else if (matchesKey(data, Key.ctrl("p"))) {
       const project = this.vm.project, session = this.vm.session;
-      if (this.vm.activePane === "projects" && project) {
+      if (this.vm.activePane === "projects" && this.vm.selectedProject.kind === "pinned-sessions") {
+        this.message = "【置顶会话】自动置顶，不能取消 pin";
+      } else if (this.vm.activePane === "projects" && project) {
         void this.run(async () => { this.vm.catalog = await this.callbacks.pinProject(project.id, !project.pinned); this.vm.refresh(); });
       } else if (this.vm.activePane === "sessions" && session) {
         void this.run(async () => { this.vm.catalog = await this.callbacks.pinSession(session.key, !session.pinned); this.vm.refresh(); });
@@ -199,15 +202,17 @@ export class GoSelector implements Component, Focusable {
       let left = offset === 0 && !this.vm.projectRows.length ? this.theme.fg("dim", "无匹配项目") : "";
       let right = offset === 0 && !this.vm.sessionRows.length ? this.theme.fg("dim", "请调整项目搜索") : "";
       if (p) {
-        const project = p.kind === "project" ? this.vm.catalog.projects.get(p.id) : undefined;
-        const selected = p.kind === "all" ? this.vm.selectedProject.kind === "all" : this.vm.project?.id === p.id;
+        const project = p.kind === "project" ? this.vm.catalog.projects.get(p.id)
+          : p.kind === "pinned-sessions" ? this.vm.catalog.pinnedSessionsGroup : undefined;
+        const selected = p.kind === "all" ? this.vm.selectedProject.kind === "all"
+          : p.kind === "pinned-sessions" ? this.vm.selectedProject.kind === "pinned-sessions" : this.vm.project?.id === p.id;
         left = styleRow(`${selected ? "›" : " "} ${project?.pinned ? "★ " : "  "}${project?.name ?? "所有项目"}`,
           selected, this.vm.activePane === "projects", leftWidth);
       }
       if (s) {
         const session = s.kind === "session" ? this.vm.catalog.sessions.get(s.key) : undefined;
         const selected = s.kind === "new" ? this.vm.selectedSession.kind === "new" : this.vm.session?.key === s.key;
-        const projectName = session && this.vm.selectedProject.kind === "all" ? ` [${this.vm.catalog.projects.get(session.projectId)?.name ?? ""}]` : "";
+        const projectName = session && (this.vm.selectedProject.kind === "all" || this.vm.selectedProject.kind === "pinned-sessions") ? ` [${this.vm.catalog.projects.get(session.projectId)?.name ?? ""}]` : "";
         right = styleRow(`${selected ? "›" : " "} ${session?.pinned ? "★ " : "  "}${session ? session.name + projectName : "＋ 新建会话"}`,
           selected, this.vm.activePane === "sessions", rightWidth);
       }
@@ -216,7 +221,8 @@ export class GoSelector implements Component, Focusable {
     lines.push(pair(this.theme.fg("dim", `${this.vm.projectRows.filter(row => row.kind === "project").length} 个项目`), this.theme.fg("dim", `${this.vm.sessionRows.filter(row => row.kind === "session").length} 个会话`)));
     const detail = this.vm.activePane === "sessions" && this.vm.session
       ? this.vm.catalog.projects.get(this.vm.session.projectId)?.cwd ?? "项目目录不可用"
-      : this.vm.project?.cwd ?? (this.vm.selectedProject.kind === "none" ? "没有匹配项目" : "所有项目 · 全局会话搜索");
+      : this.vm.project?.cwd ?? (this.vm.selectedProject.kind === "none" ? "没有匹配项目"
+        : this.vm.selectedProject.kind === "pinned-sessions" ? "【置顶会话】 · 所有项目的置顶会话" : "所有项目 · 全局会话搜索");
     lines.push(frame(this.theme.fg(this.message ? "warning" : "dim", this.message || safeText(detail))));
     lines.push(border("╰", "╯"));
     return lines;

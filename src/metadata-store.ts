@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import type { Metadata, ProjectMeta, SessionMeta } from "./types.ts";
+import { PINNED_SESSIONS_GROUP_ID, type Metadata, type ProjectMeta, type SessionMeta } from "./types.ts";
 
 export function emptyMetadata(): Metadata {
   return { version: 1, projects: {}, sessions: {} };
@@ -25,6 +25,11 @@ function validate(value: unknown): Metadata {
         throw new Error("pi-go 状态条目损坏；原文件未修改");
       }
     }
+  }
+  if (value.pinnedSessionsGroup !== undefined && (!isRecord(value.pinnedSessionsGroup) ||
+      (value.pinnedSessionsGroup.pinOrder !== undefined && (typeof value.pinnedSessionsGroup.pinOrder !== "number" ||
+      !Number.isSafeInteger(value.pinnedSessionsGroup.pinOrder) || value.pinnedSessionsGroup.pinOrder < 0)))) {
+    throw new Error("pi-go 置顶会话分组顺序损坏；原文件未修改");
   }
   if (value.extraSessionDirs !== undefined && (!Array.isArray(value.extraSessionDirs) || value.extraSessionDirs.some(x => typeof x !== "string"))) {
     throw new Error("pi-go extraSessionDirs 必须是路径数组");
@@ -88,6 +93,7 @@ export class MetadataStore {
   }
 
   patchProject(id: string, patch: Partial<ProjectMeta>): Promise<Metadata> {
+    if (id === PINNED_SESSIONS_GROUP_ID) return Promise.reject(new Error("【置顶会话】不能取消 pin 或重命名"));
     return this.update(s => { s.projects[id] = { ...s.projects[id], ...patch }; });
   }
   patchSession(key: string, patch: Partial<SessionMeta>): Promise<Metadata> {
@@ -95,7 +101,11 @@ export class MetadataStore {
   }
   movePinned(kind: "project" | "session", key: string, neighbor: string, fallbackOrder: string[]): Promise<Metadata> {
     return this.update(state => {
-      const entries = kind === "project" ? state.projects : state.sessions;
+      const entries: Record<string, ProjectMeta | SessionMeta> = { ...(kind === "project" ? state.projects : state.sessions) };
+      if (kind === "project" && fallbackOrder.includes(PINNED_SESSIONS_GROUP_ID) &&
+          Object.values(state.sessions).some(session => session.pinned)) {
+        entries[PINNED_SESSIONS_GROUP_ID] = { pinned: true, pinOrder: state.pinnedSessionsGroup?.pinOrder };
+      }
       if (!entries[key]?.pinned || !entries[neighbor]?.pinned || key === neighbor) {
         throw new Error("只能移动已 pin 的条目；状态已变化，请重新打开选择器");
       }
@@ -108,7 +118,12 @@ export class MetadataStore {
       });
       const from = order.indexOf(key), to = order.indexOf(neighbor);
       [order[from], order[to]] = [order[to], order[from]];
-      order.forEach((id, index) => { entries[id] = { ...entries[id], pinOrder: index }; });
+      order.forEach((id, index) => {
+        if (kind === "project" && id === PINNED_SESSIONS_GROUP_ID) {
+          state.pinnedSessionsGroup = { ...state.pinnedSessionsGroup, pinOrder: index };
+        } else if (kind === "project") state.projects[id] = { ...state.projects[id], pinOrder: index };
+        else state.sessions[id] = { ...state.sessions[id], pinOrder: index };
+      });
     });
   }
 

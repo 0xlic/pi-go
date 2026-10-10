@@ -2,7 +2,11 @@ import { basename } from "node:path";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { normalizePath, safeText } from "./path-utils.ts";
 import { searchText } from "./search.ts";
-import type { Catalog, Metadata, Project } from "./types.ts";
+import { PINNED_SESSIONS_GROUP_ID, type Catalog, type Metadata, type Project, type PinnedSessionsGroup } from "./types.ts";
+
+export function projectEntries(catalog: Catalog): (Project | PinnedSessionsGroup)[] {
+  return [...catalog.projects.values(), ...(catalog.pinnedSessionsGroup ? [catalog.pinnedSessionsGroup] : [])];
+}
 
 export function buildCatalog(infos: readonly SessionInfo[], metadata: Metadata, currentCwd: string): Catalog {
   const projects: Catalog["projects"] = new Map();
@@ -42,5 +46,12 @@ export function buildCatalog(infos: readonly SessionInfo[], metadata: Metadata, 
       ? Math.max(explicit ?? 0, ...visits)
       : Math.max(0, ...project.sessionKeys.map(key => sessions.get(key)!.lastUsedAt));
   }
-  return { projects, sessions };
+  const pinned = [...sessions.values()].filter(session => session.pinned);
+  const name = "【置顶会话】";
+  return { projects, sessions, pinnedSessionsGroup: pinned.length ? {
+    id: PINNED_SESSIONS_GROUP_ID, name, pinned: true,
+    pinOrder: metadata.pinnedSessionsGroup?.pinOrder,
+    lastUsedAt: Math.max(...pinned.map(session => session.lastUsedAt)),
+    searchFields: [searchText(name)],
+  } : undefined };
 }

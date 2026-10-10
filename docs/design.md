@@ -165,7 +165,7 @@ interface MetadataV1 {
 “所有项目”和“新建会话”使用显式联合类型，不使用特殊路径字符串冒充普通数据：
 
 ```typescript
-type ProjectRow = { kind: "all" } | { kind: "project"; id: ProjectId };
+type ProjectRow = { kind: "all" } | { kind: "pinned-sessions" } | { kind: "project"; id: ProjectId };
 type SessionRow = { kind: "new" } | { kind: "session"; key: SessionKey };
 ```
 
@@ -358,7 +358,18 @@ Ctrl+Y（Yank）复制项目目录；原 Ctrl+O 独立“打开目录”功能�
 - 排序成功后重新筛选并保留当前 key、焦点、两个搜索词；失败提示。边界不循环、不写入。
 - 取消 pin 清除位置；新 pin 或重新 pin 排在已有手动排序条目之后。
 
-### 8.5 pin 与重命名
+### 8.5 【置顶会话】虚拟项目范围
+
+- Catalog 按实际可发现的 pinned sessions 创建可选 pinnedSessionsGroup；无真实 pinned session 时为 undefined，不受损坏或已删除 session 的遗留 pin 标记影响。
+- 固定显示名称为“【置顶会话】”，ProjectRow.kind 为 pinned-sessions。分组不是 Project，不具有 cwd，不创建虚假路径元数据。
+- projectEntries() 将分组与普通项目合并用于筛选及排序。分组 pinned 始终为 true；未手动排序时以其会话最近使用时间作排序回退，手动位置存于 Metadata.pinnedSessionsGroup.pinOrder。
+- Alt+↑↓ 通过保留标识 pi-go:pinned-sessions 参与项目置顶组交换；MetadataStore 在锁内临时投影该条目，保存位置到独立字段，绝不写入 projects 路径映射。消失后保留位置元数据，供再次出现时使用。
+- Ctrl+P 在虚拟分组上只提示无法取消 pin；后端 patchProject() 也拒绝该保留标识。
+- 右侧范围为全局 pinned sessions，显示其所属项目；标题搜索、会话排序、取消 pin、恢复和复制真实项目 cwd 保持原规则。
+- 最后一个会话取消 pin 后 refresh() 移除分组，若正在选中该分组则按现有可见列表回退选择，清空右侧搜索。左栏按分组名称过滤而非按子会话名称过滤。
+- 分组内“新建会话”仍先确认 cwd；虚拟分组自身不可复制路径或重命名。
+
+### 8.6 pin 与重命名
 
 - 虚拟入口不可操作，显示轻量提示。
 - pin 修改和重命名均先提交 MetadataStore，再更新视图；失败保持原状态并提示。

@@ -6,7 +6,8 @@ import { test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { KeybindingsManager, SessionInfo, Theme } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";
-import { buildCatalog } from "../src/catalog.ts";
+import { buildCatalog, projectEntries } from "../src/catalog.ts";
+import { PINNED_SESSIONS_GROUP_ID } from "../src/types.ts";
 import { MetadataStore } from "../src/metadata-store.ts";
 import { compareEntries } from "../src/sort.ts";
 import { GoSelector } from "../src/ui/go-selector.ts";
@@ -29,16 +30,17 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
   const catalog = () => buildCatalog(infos, metadata, "/work/a");
   const theme = { fg: (_: string, s: string) => s, bg: (_: string, s: string) => s, bold: (s: string) => s } as Theme;
   let moves = 0;
+  const copied: string[] = [];
   const selector = new GoSelector({ requestRender: () => {}, terminal: { rows: 24 } } as Pick<TUI, "requestRender" | "terminal">,
     theme, { matches: () => false } as unknown as KeybindingsManager, catalog(), "/work/a", {
       pinProject: async (id, pinned) => { metadata = await store.patchProject(id, { pinned, pinOrder: undefined }); return catalog(); },
       pinSession: async (key, pinned) => { metadata = await store.patchSession(key, { pinned, pinOrder: undefined }); return catalog(); },
-      rename: async () => catalog(), copyPath: async () => {},
+      rename: async () => catalog(), copyPath: async cwd => { copied.push(cwd); },
       movePin: async (kind, key, neighbor) => {
         moves++;
         const current = catalog();
         const keys = kind === "project"
-          ? [...current.projects.values()].filter(p => p.pinned).sort(compareEntries).map(p => p.id)
+          ? projectEntries(current).filter(p => p.pinned).sort(compareEntries).map(p => p.id)
           : [...current.sessions.values()].filter(s => s.pinned).sort(compareEntries).map(s => s.key);
         metadata = await store.movePinned(kind, key, neighbor, keys);
         return catalog();
@@ -49,7 +51,7 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
     while (selector.render(100).join("\n").includes("保存 / 加载中") && Date.now() < deadline) await sleep(5);
     assert.match(selector.render(100).join("\n"), /置顶顺序已保存/);
   };
-  return { selector, store, infos, settled, moves: () => moves };
+  return { selector, store, infos, settled, copied, moves: () => moves };
 }
 
 const projects = (selector: GoSelector) => selector.vm.projectRows.flatMap(row => row.kind === "project" ? [row.id] : []);
@@ -89,9 +91,10 @@ test("filtered project pins swap only visible neighbors; boundaries and ordinary
   await f.store.patchProject("/work/a", { alias: "visible-a" });
   await f.store.patchProject("/work/c", { alias: "visible-c" });
   f.selector.vm.catalog = buildCatalog(f.infos, await f.store.read(), "/work/a");
+  const hiddenIndex = projectEntries(f.selector.vm.catalog).filter(p => p.pinned).sort(compareEntries).findIndex(p => p.id === "/work/b");
   f.selector.vm.setQuery("visible");
   f.selector.handleInput("\x1b[1;3B"); await f.settled();
-  assert.equal((await f.store.read()).projects["/work/b"].pinOrder, 1);
+  assert.equal((await f.store.read()).projects["/work/b"].pinOrder, hiddenIndex);
   assert.equal(f.selector.vm.projectQuery, "visible");
   assert.deepEqual(projects(f.selector), ["/work/c", "/work/a"]);
   const before = f.moves();
@@ -116,4 +119,48 @@ test("manual order wins over later visits; normal entries retain recency sorting
   assert.deepEqual([...catalog.projects.values()].sort(compareEntries).map(p => p.id), ["/work/b", "/work/a", "/work/c"]);
   await f.store.patchProject("/work/a", { pinned: false, pinOrder: undefined });
   await assert.rejects(f.store.movePinned("project", "/work/a", "/work/b", []), /只能移动已 pin/);
+});
+
+test("virtual pinned-session group moves among pinned projects without a fake cwd or unpin action", async t => {
+  const f = await fixture(t);
+  f.selector.vm.selectProject({ kind: "pinned-sessions" });
+  assert.match(f.selector.render(100).join("\n"), /【置顶会话】/);
+  const initial = f.selector.vm.projectRows.findIndex(row => row.kind === "pinned-sessions");
+  assert.ok(initial > 0);
+  f.selector.handleInput("\x1b[1;3B"); await f.settled();
+  assert.equal(f.selector.vm.projectRows.findIndex(row => row.kind === "pinned-sessions"), initial + 1);
+  assert.equal(f.selector.vm.selectedProject.kind, "pinned-sessions");
+  const state = await f.store.read();
+  assert.equal(state.pinnedSessionsGroup?.pinOrder, initial);
+  assert.equal(state.projects[PINNED_SESSIONS_GROUP_ID], undefined);
+  assert.equal(f.selector.vm.project, undefined);
+  const reopened = buildCatalog(f.infos, state, "/work/a");
+  const groupPosition = projectEntries(reopened).sort(compareEntries).findIndex(p => p.id === PINNED_SESSIONS_GROUP_ID);
+  assert.equal(groupPosition, initial);
+  const before = JSON.stringify(state);
+  f.selector.handleInput("\x10");
+  assert.match(f.selector.render(100).join("\n"), /不能取消 pin/);
+  assert.equal(JSON.stringify(await f.store.read()), before);
+  await assert.rejects(f.store.patchProject(PINNED_SESSIONS_GROUP_ID, { pinned: false }), /不能取消 pin/);
+  f.selector.vm.activePane = "sessions";
+  assert.deepEqual(sessions(f.selector), ["/s/a", "/s/b", "/s/c"]);
+  f.selector.vm.move(2); // /s/b belongs to another project.
+  f.selector.handleInput("\x19"); await sleep(5);
+  assert.deepEqual(f.copied, ["/work/b"]);
+});
+
+test("virtual group vanishes immediately after its last actual session is unpinned", async t => {
+  const f = await fixture(t);
+  f.selector.vm.selectProject({ kind: "pinned-sessions" });
+  f.selector.vm.activePane = "sessions";
+  for (let count = 0; count < 3; count++) {
+    f.selector.vm.move(1);
+    assert.ok(f.selector.vm.session?.pinned);
+    f.selector.handleInput("\x10");
+    const deadline = Date.now() + 2000;
+    while (f.selector.render(100).join("\n").includes("保存 / 加载中") && Date.now() < deadline) await sleep(5);
+  }
+  assert.equal(f.selector.vm.catalog.pinnedSessionsGroup, undefined);
+  assert.ok(!f.selector.vm.projectRows.some(row => row.kind === "pinned-sessions"));
+  assert.equal(f.selector.vm.selectedProject.kind, "all");
 });

@@ -1,6 +1,7 @@
+import { projectEntries } from "../catalog.ts";
 import { matches } from "../search.ts";
 import { compareEntries } from "../sort.ts";
-import type { Catalog, Project, ProjectRow, GoSession, SessionRow } from "../types.ts";
+import { PINNED_SESSIONS_GROUP_ID, type Catalog, type Project, type ProjectRow, type GoSession, type SessionRow, type PinnedSessionsGroup } from "../types.ts";
 
 type ProjectSelection = ProjectRow | { kind: "none" };
 function projectKey(row: ProjectSelection): string { return row.kind === "project" ? row.id : row.kind; }
@@ -24,6 +25,9 @@ export class ViewModel {
   get project(): Project | undefined {
     return this.selectedProject.kind === "project" ? this.catalog.projects.get(this.selectedProject.id) : undefined;
   }
+  get projectEntry(): Project | PinnedSessionsGroup | undefined {
+    return this.selectedProject.kind === "pinned-sessions" ? this.catalog.pinnedSessionsGroup : this.project;
+  }
   get session(): GoSession | undefined {
     return this.selectedSession.kind === "session" ? this.catalog.sessions.get(this.selectedSession.key) : undefined;
   }
@@ -43,9 +47,10 @@ export class ViewModel {
     this.refresh();
   }
   refresh(): void {
-    const projects = [...this.catalog.projects.values()].filter(p => matches(this.projectQuery, p.searchFields))
+    const projects = projectEntries(this.catalog).filter(p => matches(this.projectQuery, p.searchFields))
       .sort((a, b) => compareEntries(a, b) || a.id.localeCompare(b.id));
-    this.projectRows = projects.map(p => ({ kind: "project" as const, id: p.id }));
+    this.projectRows = projects.map(p => p.id === PINNED_SESSIONS_GROUP_ID
+      ? { kind: "pinned-sessions" as const } : { kind: "project" as const, id: p.id });
     if (!this.projectQuery.trim()) this.projectRows.unshift({ kind: "all" });
     if (!this.projectRows.some(row => projectKey(row) === projectKey(this.selectedProject))) {
       const next: ProjectSelection = this.projectRows[0] ?? { kind: "none" };
@@ -58,7 +63,7 @@ export class ViewModel {
     }
     const selected = this.selectedProject;
     const sessions = [...this.catalog.sessions.values()]
-      .filter(s => (selected.kind === "all" || (selected.kind === "project" && s.projectId === selected.id)) && matches(this.sessionQuery, [s.searchTitle]))
+      .filter(s => (selected.kind === "all" || (selected.kind === "pinned-sessions" && s.pinned) || (selected.kind === "project" && s.projectId === selected.id)) && matches(this.sessionQuery, [s.searchTitle]))
       .sort((a, b) => compareEntries(a, b) || a.key.localeCompare(b.key));
     this.sessionRows = selected.kind === "none" ? [] : [{ kind: "new" }, ...sessions.map(s => ({ kind: "session" as const, key: s.key }))];
     if (!this.sessionRows.some(row => sessionKey(row) === sessionKey(this.selectedSession))) this.selectedSession = { kind: "new" };
