@@ -8,7 +8,7 @@ function harness() {
   const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => void>();
   const sent: unknown[] = [];
   const api = { on: (event: string, handler: (event: unknown, ctx: ExtensionContext) => void) => handlers.set(event, handler),
-    getFlag: () => true, sendUserMessage: (...args: unknown[]) => sent.push(args) } as unknown as ExtensionAPI;
+    getFlag: (name: string) => name === "g", sendUserMessage: (...args: unknown[]) => sent.push(args) } as unknown as ExtensionAPI;
   const ctx = { mode: "tui" } as ExtensionContext;
   return { api, handlers, sent, ctx };
 }

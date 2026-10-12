@@ -13,7 +13,7 @@ const globals = globalThis as typeof globalThis & { [guardKey]?: RuntimeGuard };
 export default function piGo(pi: ExtensionAPI): void {
   const guard = globals[guardKey] ??= { active: false, startupConsumed: false };
   const store = new MetadataStore(join(getAgentDir(), "pi-go", "state.json"));
-  pi.registerFlag("go", { description: "Open the project/session switcher on startup", type: "boolean", default: false });
+  pi.registerFlag("g", { description: "Open the project/session switcher on startup", type: "boolean", default: false });
   pi.registerCommand("go", { description: "切换项目和会话，创建或恢复 session", handler: async (_args, ctx) => openGo(ctx, store, guard) });
   pi.on("session_start", async (_event, ctx) => {
     if (guard.active) return; // /go records replacement visits through its fresh-context callback.

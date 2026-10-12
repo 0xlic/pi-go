@@ -7,7 +7,7 @@ Pi 的双栏项目 / session 切换器。第一版已实现，基于 **Pi 1.1.0�
 在插件目录执行：
 
 ```bash
-pi -e ./index.ts --go
+pi -e ./index.ts --g
 ```
 
 已有会话中，加载插件后输入：
@@ -22,7 +22,7 @@ pi -e ./index.ts --go
 
 ```bash
 pi install git:github.com/0xlic/pi-go
-pi --go
+pi --g
 ```
 
 从公开 GitHub 仓库安装，Pi 管理远程源码，不依赖本地开发目录。更新插件：
@@ -31,9 +31,9 @@ pi --go
 pi update git:github.com/0xlic/pi-go
 ```
 
-已有会话更新后执行 `/reload`。可选 shell 别名：`alias pig='pi --go'`。
+已有会话更新后执行 `/reload`。可选 shell 别名：`alias pig='pi --g'`。
 
-Pi 扩展原生只支持长参数，因此启动入口是 `--go`，不是 `-g`。不修改系统 `pi` 命令，也不自动安装 shell 包装层。
+Pi 扩展原生只支持长参数，因此启动入口是 `--g`，不是 `-g`。不修改系统 `pi` 命令，也不自动安装 shell 包装层。
 
 ## 界面和快捷键
 

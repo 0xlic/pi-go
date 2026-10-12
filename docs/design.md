@@ -7,7 +7,7 @@
 ## 1. 架构
 
 ```text
-启动参数 --go ── StartupAdapter ──┐
+启动参数 --g ── StartupAdapter ──┐
                                 ├─ GoController
 会话命令 /go ── CommandAdapter ──┘       │
                      ┌──────────────────┼──────────────────┐
@@ -52,7 +52,7 @@ UI 与环境变更必须分离。界面返回一个动作，然后在合法的�
 
 ### 2.2 启动入口
 
-注册 boolean 参数 `go`。扩展 factory 仅注册能力，不启动 UI。
+注册 boolean 参数 `g`。扩展 factory 仅注册能力，不启动 UI。
 
 建议状态：
 
@@ -68,7 +68,7 @@ not-requested | pending | dispatched | completed
 
 若无可用公共桥接，应重新评估启动入口方案，例如外部启动器；不得用强制类型转换把事件上下文伪装成命令上下文。
 
-非 TUI 模式收到 `--go` 时给出明确诊断，不尝试 custom UI。
+非 TUI 模式收到 `--g` 时给出明确诊断，不尝试 custom UI。
 
 ### 2.3 会话内入口
 
@@ -445,8 +445,8 @@ src/types.ts                   自有类型
 
 ### 12.3 Pi 集成测试
 
-- --go 首次启动触发，session_start 再触发不重开。
-- --go 不向模型发送 `/go` 文本。
+- --g 首次启动触发，session_start 再触发不重开。
+- --g 不向模型发送 `/go` 文本。
 - /go 等待 idle，取消不 abort 原任务。
 - 跨项目恢复后 read/bash 的真实 cwd、项目上下文、扩展与资源正确。
 - 当前目录和跨目录新建均可恢复且记录 cwd 正确。
@@ -464,7 +464,7 @@ src/types.ts                   自有类型
 4. 实现 MetadataStore 和 Catalog。
 5. 实现双栏 UI，先使用静态数据验证输入与布局。
 6. 接入 /go 恢复与当前目录新建。
-7. 接入跨目录新建与 --go 一次性启动。
+7. 接入跨目录新建与 --g 一次性启动。
 8. 集成测试、打包和安装说明。
 
 启动桥接和跨目录新建是原设计的可行性阻塞项；现已通过下述方式实现并测试。
@@ -473,7 +473,7 @@ src/types.ts                   自有类型
 
 ### 已完成
 
-- `index.ts` 注册 `/go` 和 boolean 参数 `--go`，使用进程级共享 guard 避免 session 替换或 reload 再次触发启动界面。
+- `index.ts` 注册 `/go` 和 boolean 参数 `--g`，使用进程级共享 guard 避免 session 替换或 reload 再次触发启动界面。
 - 启动桥接使用公共 `pi.sendUserMessage("/go", { expandPromptTemplates: true })`，通过 timer 在 session_start 返回后派发。真实扩展文件加载测试确认命令不进入模型 transcript。
 - `src/ui/load-with-progress.ts` 使用 BorderedLoader，等待 idle 并加载历史，Esc 取消发现而不 abort 现有模型任务。
 - 双栏选择器、独立输入焦点、中文列宽、pin、项目别名、目录输入及非递归候选浏览已实现。
@@ -488,8 +488,8 @@ src/types.ts                   自有类型
 
 - TypeScript 严格检查通过。
 - 自动测试覆盖搜索 / pin / 稳定排序 / 选择修正 / 跨进程元数据 / session 快照 / 启动桥接 / 双栏按键及宽字符。
-- 真实 Pi SDK 测试验证 cwd-bound runtime 替换、read 工具相对路径、目标 AGENTS.md、历史恢复，以及真实扩展文件 --go 与 /go 打开相同界面而不请求模型。
-- CLI help smoke test 能显示 --go 扩展参数。
+- 真实 Pi SDK 测试验证 cwd-bound runtime 替换、read 工具相对路径、目标 AGENTS.md、历史恢复，以及真实扩展文件 --g 与 /go 打开相同界面而不请求模型。
+- CLI help smoke test 能显示 --g 扩展参数。
 - `--no-session` 下不支持跨目录新建，提示改用持久化会话。
 - 不提供 session 删除、全文搜索、正则搜索或对系统 pi 命令的 -g 包装。
 - 发现加载错误会返回 Pi 扩展错误提示，用户可以重新运行 /go；尚未提供加载界面内的独立重试按钮。

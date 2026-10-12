@@ -79,7 +79,7 @@ test("real Pi command dispatch and runtime replacement rebind cwd, read tool and
   assert.match(JSON.stringify(runtime.session.messages), /original history/);
 });
 
-test("loads actual extension file: --go displays picker once and never sends a model prompt", async t => {
+test("loads actual extension file: --g displays picker once and never sends a model prompt", async t => {
   initTheme("dark", false); // CLI initializes the shared theme before invoking interactive extensions.
   const root = await mkdtemp(join(tmpdir(), "pi-go-startup-sdk-"));
   const oldAgentDir = process.env.PI_CODING_AGENT_DIR;
@@ -92,7 +92,7 @@ test("loads actual extension file: --go displays picker once and never sends a m
   const cwd = join(root, "project"); await mkdir(cwd);
   const settingsManager = SettingsManager.inMemory({ defaultProjectTrust: "never" });
   const services = await createAgentSessionServices({ cwd, agentDir: root, settingsManager,
-    extensionFlagValues: new Map([["go", true]]),
+    extensionFlagValues: new Map([["g", true]]),
     resourceLoaderOptions: { noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
       additionalExtensionPaths: [fileURLToPath(new URL("../index.ts", import.meta.url))] },
   });
