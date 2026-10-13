@@ -1,5 +1,6 @@
-import { copyToClipboard, type ExtensionCommandContext, type SessionInfo } from "@earendil-works/pi-coding-agent";
+import { copyToClipboard, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { buildCatalog, projectEntries } from "./catalog.ts";
+import { inspectCatalogAvailability } from "./catalog-availability.ts";
 import { MetadataStore } from "./metadata-store.ts";
 import { normalizePath } from "./path-utils.ts";
 import { executeAction } from "./session-gateway.ts";
@@ -23,21 +24,15 @@ export async function openGo(ctx: ExtensionCommandContext, store: MetadataStore,
       signal.throwIfAborted();
       const infos = await listSessions(ctx.sessionManager.getSessionDir(), metadata.extraSessionDirs ?? [], signal);
       signal.throwIfAborted();
-      return { metadata, infos };
+      const availability = await inspectCatalogAvailability(infos, metadata, ctx.cwd, signal);
+      return { metadata, infos, availability };
     });
     if (!loaded) return;
     const cwd = normalizePath(ctx.cwd);
     let { metadata } = loaded;
-    const { infos } = loaded;
-    const currentFile = ctx.sessionManager.getSessionFile();
-    if (currentFile && !infos.some(info => normalizePath(info.path) === normalizePath(currentFile))) {
-      // Pi's current empty session may not yet exist on disk. It is still safe to select without replacing it.
-      const now = new Date();
-      infos.push({ path: currentFile, id: ctx.sessionManager.getSessionId(), cwd,
-        name: ctx.sessionManager.getSessionName(), created: now, modified: now,
-        messageCount: 0, firstMessage: "", allMessagesText: "" } satisfies SessionInfo);
-    }
-    const catalog = () => buildCatalog(infos, metadata, cwd);
+    const { infos, availability } = loaded;
+    // Only discovered files become selectable sessions; do not revive a deleted current file.
+    const catalog = () => buildCatalog(infos, metadata, cwd, availability);
     const action = await ctx.ui.custom<GoAction | null>((tui, theme, kb, done) => new GoSelector(tui, theme, kb, catalog(), cwd, {
       pinProject: async (id, pinned) => { metadata = await store.patchProject(id, { pinned, pinOrder: undefined }); return catalog(); },
       pinSession: async (key, pinned) => { metadata = await store.patchSession(key, { pinned, pinOrder: undefined }); return catalog(); },

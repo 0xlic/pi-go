@@ -198,7 +198,11 @@ type SessionRow = { kind: "new" } | { kind: "session"; key: SessionKey };
 
 不为每次按键读取全部会话正文。优先使用 Pi 提供的摘要/列表能力；API 的导出名、跨目录列举范围和摘要字段需实施前核对。
 
-损坏 session 跳过并显示汇总警告，不阻断全部列表。缺失目录可以保留展示并标记不可用，实际恢复/创建前再次检查。第一版打开时刷新 catalog，不默认启动 watcher。
+Pi 列表 API 跳过部分损坏 session，不阻断全部列表。每次打开时 inspectCatalogAvailability() 对历史 cwd、元数据项目路径及当前 cwd 做目录 stat，并对发现的 session 路径做文件 stat，最多各 16 个并发任务；支持取消。
+
+buildCatalog() 接收此次打开的可用路径快照，registered / pin / 别名 / 访问记录不能将不存在或不可访问的 cwd 重新加入列表。会话文件不存在或其 cwd 不可访问时，不进入 session 列表或【置顶会话】分组。
+
+不因存在性检查修改或删除持久元数据及实际文件，以保留离线磁盘的别名、pin 和顺序；不默认启动 watcher，外部清理后需重新打开 /go。移除原先“当前 session 文件未发现则补一条记录”的逻辑，未写盘的空会话和外部已删除的当前 JSONL 不显示为可恢复的历史。实际恢复/创建前仍再次检查。
 
 ## 6. 搜索与排序
 

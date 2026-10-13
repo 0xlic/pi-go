@@ -2,17 +2,19 @@ import { basename } from "node:path";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { normalizePath, safeText } from "./path-utils.ts";
 import { searchText } from "./search.ts";
+import type { CatalogAvailability } from "./catalog-availability.ts";
 import { PINNED_SESSIONS_GROUP_ID, type Catalog, type Metadata, type Project, type PinnedSessionsGroup } from "./types.ts";
 
 export function projectEntries(catalog: Catalog): (Project | PinnedSessionsGroup)[] {
   return [...catalog.projects.values(), ...(catalog.pinnedSessionsGroup ? [catalog.pinnedSessionsGroup] : [])];
 }
 
-export function buildCatalog(infos: readonly SessionInfo[], metadata: Metadata, currentCwd: string): Catalog {
+export function buildCatalog(infos: readonly SessionInfo[], metadata: Metadata, currentCwd: string, availability?: CatalogAvailability): Catalog {
   const projects: Catalog["projects"] = new Map();
   const sessions: Catalog["sessions"] = new Map();
-  function addProject(cwd: string): Project {
+  function addProject(cwd: string): Project | undefined {
     const id = normalizePath(cwd);
+    if (availability && !availability.projectPaths.has(id)) return undefined;
     const existing = projects.get(id);
     if (existing) return existing;
     const meta = metadata.projects[id];
@@ -30,8 +32,9 @@ export function buildCatalog(infos: readonly SessionInfo[], metadata: Metadata, 
     // Old sessions without a cwd cannot safely be assigned to the current project.
     if (!info.cwd) continue;
     const key = normalizePath(info.path);
-    if (sessions.has(key)) continue;
+    if (sessions.has(key) || (availability && !availability.sessionPaths.has(key))) continue;
     const project = addProject(info.cwd);
+    if (!project) continue;
     const meta = metadata.sessions[key];
     const name = safeText(info.name?.trim() || info.firstMessage?.trim() || `未命名会话 ${info.id.slice(0, 8)}`);
     sessions.set(key, { key, projectId: project.id, name, pinned: !!meta?.pinned,
