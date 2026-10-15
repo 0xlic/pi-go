@@ -1,6 +1,7 @@
 import { open, readFile, stat, unlink } from "node:fs/promises";
 import { parseSessionEntries, SessionManager, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { assertDirectory, normalizePath } from "./path-utils.ts";
+import { copyProjectPath } from "./clipboard.ts";
 import type { MetadataStore } from "./metadata-store.ts";
 import type { GoAction } from "./types.ts";
 
@@ -24,13 +25,19 @@ async function discardUnused(seed: { path: string; snapshot: string }): Promise<
   if (await readFile(seed.path, "utf8").catch(() => undefined) === seed.snapshot) await unlink(seed.path).catch(() => undefined);
 }
 
-export async function executeAction(ctx: ExtensionCommandContext, action: GoAction, store: MetadataStore): Promise<void> {
+export async function executeAction(ctx: ExtensionCommandContext, action: GoAction, store: MetadataStore,
+  copyPath: (cwd: string) => Promise<void> = copyProjectPath): Promise<void> {
   const remember = async (fresh: ExtensionCommandContext) => {
     try {
       const path = fresh.sessionManager.getSessionFile();
       await store.visit(normalizePath(fresh.cwd), path ? normalizePath(path) : undefined);
     } catch (error) {
       fresh.ui.notify(`已切换，但访问记录未保存：${error instanceof Error ? error.message : String(error)}`, "warning");
+    }
+    try {
+      await copyPath(normalizePath(fresh.cwd));
+    } catch (error) {
+      fresh.ui.notify(`已切换，但项目目录复制失败：${error instanceof Error ? error.message : String(error)}`, "warning");
     }
   };
   if (action.kind === "restore") {

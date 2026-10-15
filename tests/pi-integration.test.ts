@@ -12,7 +12,10 @@ import {
   type ExtensionUIContext, type KeybindingsManager, type Theme,
 } from "@earendil-works/pi-coding-agent";
 import { MetadataStore } from "../src/metadata-store.ts";
-import { executeAction } from "../src/session-gateway.ts";
+import { executeAction as executeWithClipboard } from "../src/session-gateway.ts";
+
+const executeAction: typeof executeWithClipboard = (ctx, action, store) =>
+  executeWithClipboard(ctx, action, store, async () => {});
 
 // No model requests or user config: all services, resources and sessions live in a temporary fixture.
 test("real Pi command dispatch and runtime replacement rebind cwd, read tool and project context", async t => {

@@ -1,4 +1,5 @@
-import { copyToClipboard, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { copyProjectPath } from "./clipboard.ts";
 import { buildCatalog, projectEntries } from "./catalog.ts";
 import { inspectCatalogAvailability } from "./catalog-availability.ts";
 import { MetadataStore } from "./metadata-store.ts";
@@ -37,7 +38,7 @@ export async function openGo(ctx: ExtensionCommandContext, store: MetadataStore,
       pinProject: async (id, pinned) => { metadata = await store.patchProject(id, { pinned, pinOrder: undefined }); return catalog(); },
       pinSession: async (key, pinned) => { metadata = await store.patchSession(key, { pinned, pinOrder: undefined }); return catalog(); },
       rename: async (id, alias) => { metadata = await store.patchProject(id, { alias }); return catalog(); },
-      copyPath: copyToClipboard,
+      copyPath: copyProjectPath,
       movePin: async (kind, key, neighbor) => {
         const current = catalog();
         const fallback = kind === "project"

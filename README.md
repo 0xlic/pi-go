@@ -90,6 +90,8 @@ Ctrl+P pin · Alt+↑↓ 移动置顶 · Ctrl+R 重命名 · Ctrl+Y 复制路径
 
 ## 创建和恢复
 
+- 新建或恢复成功后，自动将目标项目 cwd 复制到剪贴板（恢复当前会话也会复制），不复制 session 文件路径；取消或失败时不复制。
+- 支持 macOS、Linux 和 Windows；Windows 使用 PowerShell Unicode 编码传输，支持中文、空格及特殊字符路径。Ctrl+Y 使用同一复制实现。剪贴板不可用时仅显示警告，不影响已完成的会话切换。
 - 具体项目下新建，使用该项目 cwd。
 - “所有项目”下新建，先确认目录，默认当前 cwd。
 - 恢复 session 通过 Pi 正式 session 替换 API 完成，同时重建目标目录的工具和项目上下文，保留 Pi 的项目信任流程。
