@@ -44,6 +44,37 @@ test("dual pane rendering fits terminal columns, including ANSI, Chinese and cur
   assert.ok(selector.render(20).every(line => visibleWidth(line) <= 20));
 });
 
+test("only the focused pane shows a search cursor and selection background", () => {
+  const { selector } = fixture();
+  const assertFocus = (pane: "projects" | "sessions" | null) => {
+    const lines = selector.render(100);
+    const screen = lines.join("\n");
+    assert.equal(screen.split("\x1b[7m").length - 1, pane ? 1 : 0);
+    assert.equal(screen.split(CURSOR_MARKER).length - 1, pane ? 1 : 0);
+    assert.equal(screen.split("\x1b[44m").length - 1, pane ? 1 : 0);
+    if (pane) {
+      for (const token of [CURSOR_MARKER, "\x1b[44m"]) {
+        const line = lines.find(line => line.includes(token))!;
+        const column = visibleWidth(line.slice(0, line.indexOf(token)));
+        const rightStart = 2 + Math.floor((100 - 7) * 0.44) + 3;
+        assert.equal(column < rightStart, pane === "projects");
+      }
+    }
+  };
+  assertFocus("projects");
+  selector.handleInput("\t");
+  assertFocus("sessions");
+  selector.handleInput("中文");
+  assertFocus("sessions");
+  selector.handleInput("\t");
+  assertFocus("projects");
+  assert.match(selector.render(100).join("\n"), /会话 › 中文/);
+  selector.focused = false;
+  assertFocus(null);
+  selector.focused = true;
+  assertFocus("projects");
+});
+
 test("Tab preserves queries, project change clears session input; Enter restores selected session", () => {
   const { selector, actions } = fixture();
   selector.handleInput("\t"); selector.handleInput("中文");

@@ -186,15 +186,27 @@ export class GoSelector implements Component, Focusable {
     }
     const leftWidth = Math.floor((inner - 3) * 0.44), rightWidth = inner - leftWidth - 3;
     const pair = (left: string, right: string) => frame(`${cell(left, leftWidth)} ${fg("│")} ${cell(right, rightWidth)}`);
-    lines.push(pair(this.projectInput.render(leftWidth)[0], this.sessionInput.render(rightWidth)[0]));
+    const projectsActive = this.hasFocus && this.vm.activePane === "projects";
+    const sessionsActive = this.hasFocus && this.vm.activePane === "sessions";
+    // Input.focused only controls the IME marker in some pi-tui versions;
+    // render inactive fields as text so their fake cursors cannot remain visible.
+    const search = (input: Input, prompt: string, placeholder: string, columns: number, active: boolean) => active
+      ? this.theme.fg("accent", input.render(columns)[0])
+      : this.theme.fg("dim", cell(prompt + (input.getValue() || placeholder), columns));
+    lines.push(pair(
+      search(this.projectInput, "项目 › ", "项目名称 / 目录路径", leftWidth, projectsActive),
+      search(this.sessionInput, "会话 › ", "会话名称", rightWidth, sessionsActive)));
     lines.push(frame(this.theme.fg("dim", "Tab 切换 · ↑↓ 选择 · Enter 打开 · Esc 取消")));
     lines.push(frame(this.theme.fg("dim", "Ctrl+P pin · Alt+↑↓ 移动置顶 · Ctrl+R 重命名 · Ctrl+Y 复制路径")));
-    lines.push(pair(fg("─".repeat(leftWidth)), fg("─".repeat(rightWidth))));
+    lines.push(pair(
+      this.theme.fg(projectsActive ? "accent" : "borderMuted", "─".repeat(leftWidth)),
+      this.theme.fg(sessionsActive ? "accent" : "borderMuted", "─".repeat(rightWidth))));
     this.pageHeight = Math.max(2, Math.min(14, this.tui.terminal.rows - 11));
     this.vm.ensureVisible(this.pageHeight);
     const styleRow = (text: string, selected: boolean, active: boolean, columns: number): string => {
       const padded = cell(text, columns);
-      return selected ? this.theme.bg("selectedBg", this.theme.fg(active ? "accent" : "text", padded)) : padded;
+      if (!selected) return padded;
+      return active ? this.theme.bg("selectedBg", this.theme.fg("accent", padded)) : this.theme.fg("dim", padded);
     };
     for (let offset = 0; offset < this.pageHeight; offset++) {
       const p = this.vm.projectRows[this.vm.projectScroll + offset];
@@ -207,14 +219,14 @@ export class GoSelector implements Component, Focusable {
         const selected = p.kind === "all" ? this.vm.selectedProject.kind === "all"
           : p.kind === "pinned-sessions" ? this.vm.selectedProject.kind === "pinned-sessions" : this.vm.project?.id === p.id;
         left = styleRow(`${selected ? "›" : " "} ${project?.pinned ? "★ " : "  "}${project?.name ?? "所有项目"}`,
-          selected, this.vm.activePane === "projects", leftWidth);
+          selected, projectsActive, leftWidth);
       }
       if (s) {
         const session = s.kind === "session" ? this.vm.catalog.sessions.get(s.key) : undefined;
         const selected = s.kind === "new" ? this.vm.selectedSession.kind === "new" : this.vm.session?.key === s.key;
         const projectName = session && (this.vm.selectedProject.kind === "all" || this.vm.selectedProject.kind === "pinned-sessions") ? ` [${this.vm.catalog.projects.get(session.projectId)?.name ?? ""}]` : "";
         right = styleRow(`${selected ? "›" : " "} ${session?.pinned ? "★ " : "  "}${session ? session.name + projectName : "＋ 新建会话"}`,
-          selected, this.vm.activePane === "sessions", rightWidth);
+          selected, sessionsActive, rightWidth);
       }
       lines.push(pair(left, right));
     }
