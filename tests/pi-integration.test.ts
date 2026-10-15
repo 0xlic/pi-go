@@ -128,7 +128,8 @@ test("loads actual extension file: --g displays picker once and never sends a mo
   while (screens.length === 0 && errors.length === 0 && Date.now() < deadline) await sleep(10);
   assert.deepEqual(errors, []);
   assert.equal(screens.length, 1);
-  assert.match(screens[0], /新建会话/);
+  assert.match(screens[0], /Enter 新建会话/);
+  assert.doesNotMatch(screens[0], /＋ 新建会话/);
   assert.equal(session.messages.length, 0);
   await sleep(30);
   await session.prompt("/go");

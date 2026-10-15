@@ -19,7 +19,7 @@ test("group appears only when actual sessions are pinned, not stale metadata", (
   const vm = new ViewModel(buildCatalog(infos, meta, "/work/a"), "/work/a");
   assert.ok(vm.projectRows.some(row => row.kind === "pinned-sessions"));
   vm.selectProject({ kind: "pinned-sessions" });
-  assert.deepEqual(vm.sessionRows, [{ kind: "new" }, { kind: "session", key: "/s/b" }]);
+  assert.deepEqual(vm.sessionRows, [{ kind: "session", key: "/s/b" }]);
   meta.sessions["/s/b"].pinned = false;
   vm.catalog = buildCatalog(infos, meta, "/work/a"); vm.refresh();
   assert.equal(vm.catalog.pinnedSessionsGroup, undefined);
@@ -35,7 +35,7 @@ test("virtual group is searchable by its name only and right side filters pinned
   assert.deepEqual(vm.projectRows, [{ kind: "pinned-sessions" }]);
   assert.equal(vm.selectedProject.kind, "pinned-sessions");
   vm.togglePane(); vm.setQuery("发布");
-  assert.deepEqual(vm.sessionRows, [{ kind: "new" }, { kind: "session", key: "/s/b" }]);
+  assert.deepEqual(vm.sessionRows, [{ kind: "session", key: "/s/b" }]);
   vm.togglePane(); vm.setQuery("修复");
   assert.deepEqual(vm.projectRows, []);
   assert.equal(vm.selectedProject.kind, "none");

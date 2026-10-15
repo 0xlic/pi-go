@@ -32,9 +32,9 @@ test("fixed rows, pin-first recency and filtering of pinned items", () => {
   meta.sessions["/sessions/a"] = { pinned: true };
   const vm = new ViewModel(buildCatalog(infos, meta, "/work/a"), "/work/a");
   assert.deepEqual(vm.projectRows, [{ kind: "all" }, { kind: "project", id: "/work/a" }, { kind: "pinned-sessions" }, { kind: "project", id: "/work/b" }]);
-  assert.deepEqual(vm.sessionRows, [{ kind: "new" }, { kind: "session", key: "/sessions/a" }, { kind: "session", key: "/sessions/c" }]);
+  assert.deepEqual(vm.sessionRows, [{ kind: "session", key: "/sessions/a" }, { kind: "session", key: "/sessions/c" }]);
   vm.activePane = "sessions"; vm.setQuery("插件");
-  assert.deepEqual(vm.sessionRows, [{ kind: "new" }, { kind: "session", key: "/sessions/c" }]);
+  assert.deepEqual(vm.sessionRows, [{ kind: "session", key: "/sessions/c" }]);
   vm.activePane = "projects"; vm.setQuery("/work/b");
   assert.deepEqual(vm.projectRows, [{ kind: "project", id: "/work/b" }]);
   assert.deepEqual(vm.selectedProject, { kind: "project", id: "/work/b" });
@@ -58,7 +58,7 @@ test("left searches only project paths and aliases; session titles and bodies do
   vm.selectProject({ kind: "all" });
   vm.activePane = "sessions";
   vm.setQuery("修搜");
-  assert.deepEqual(vm.sessionRows, [{ kind: "new" }, { kind: "session", key: "/sessions/a" }]);
+  assert.deepEqual(vm.sessionRows, [{ kind: "session", key: "/sessions/a" }]);
 });
 
 test("unique filtered project is selected automatically; Tab immediately searches its sessions", () => {
@@ -68,7 +68,7 @@ test("unique filtered project is selected automatically; Tab immediately searche
   assert.deepEqual(vm.projectRows, [{ kind: "project", id: "/work/b" }]);
   assert.deepEqual(vm.selectedProject, { kind: "project", id: "/work/b" });
   vm.togglePane(); vm.setQuery("登录");
-  assert.deepEqual(vm.sessionRows, [{ kind: "new" }, { kind: "session", key: "/sessions/b" }]);
+  assert.deepEqual(vm.sessionRows, [{ kind: "session", key: "/sessions/b" }]);
   vm.togglePane(); assert.equal(vm.sessionQuery, "登录");
   vm.setQuery("/work/a");
   assert.equal(vm.sessionQuery, "");
@@ -90,7 +90,7 @@ test("empty results do not fall back to global sessions; clearing search restore
   assert.deepEqual(vm.projectRows[0], { kind: "all" });
   assert.deepEqual(vm.selectedProject, { kind: "all" });
   vm.togglePane(); vm.setQuery("登录");
-  assert.equal(vm.sessionRows.length, 2);
+  assert.equal(vm.sessionRows.length, 1);
 });
 
 test("stable selection after pin reordering and explicit recency wins over file mtime", () => {
@@ -98,10 +98,10 @@ test("stable selection after pin reordering and explicit recency wins over file 
   meta.projects["/work/a"] = { lastUsedAt: 6 };
   const catalog = buildCatalog(infos, meta, "/work/a");
   assert.equal(catalog.projects.get("/work/a")?.lastUsedAt, 6);
-  const vm = new ViewModel(catalog, "/work/a"); vm.activePane = "sessions"; vm.move(1);
+  const vm = new ViewModel(catalog, "/work/a"); vm.activePane = "sessions";
   const selected = vm.selectedSession;
   meta.sessions["/sessions/a"].pinned = true;
   vm.catalog = buildCatalog(infos, meta, "/work/a"); vm.refresh();
   assert.deepEqual(vm.selectedSession, selected);
-  vm.ensureVisible(1); assert.equal(vm.sessionScroll, 2);
+  vm.ensureVisible(1); assert.equal(vm.sessionScroll, 1);
 });

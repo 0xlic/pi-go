@@ -156,10 +156,12 @@ export class GoSelector implements Component, Focusable {
       } else this.message = "固定入口不能 pin";
     } else if (this.is(data, "tui.select.confirm", Key.enter)) {
       if (this.vm.selectedProject.kind === "none") this.message = "没有匹配项目，请调整项目搜索";
-      else if (this.vm.activePane === "projects") this.vm.activePane = "sessions";
-      else if (this.vm.session) { this.done({ kind: "restore", path: this.vm.session.key }); return; }
-      else if (this.vm.project) { this.done({ kind: "create", cwd: this.vm.project.cwd }); return; }
-      else this.openDirectory();
+      else if (this.vm.activePane === "projects") {
+        if (this.vm.project) { this.done({ kind: "create", cwd: this.vm.project.cwd }); return; }
+        else if (this.vm.selectedProject.kind === "all") this.openDirectory();
+        else this.vm.togglePane();
+      } else if (this.vm.session) { this.done({ kind: "restore", path: this.vm.session.key }); return; }
+      else this.message = "没有匹配会话，请调整会话搜索或在左栏选择项目新建";
     } else {
       const input = this.vm.activePane === "projects" ? this.projectInput : this.sessionInput;
       input.handleInput(data);
@@ -196,7 +198,12 @@ export class GoSelector implements Component, Focusable {
     lines.push(pair(
       search(this.projectInput, "项目 › ", "项目名称 / 目录路径", leftWidth, projectsActive),
       search(this.sessionInput, "会话 › ", "会话名称", rightWidth, sessionsActive)));
-    lines.push(frame(this.theme.fg("dim", "Tab 切换 · ↑↓ 选择 · Enter 打开 · Esc 取消")));
+    const enterHint = this.vm.activePane === "sessions"
+      ? (this.vm.session ? "Enter 恢复会话" : "")
+      : this.vm.project || this.vm.selectedProject.kind === "all" ? "Enter 新建会话"
+        : this.vm.selectedProject.kind === "pinned-sessions" && this.vm.canFocusSessions ? "Enter 选择会话" : "";
+    const hints = [this.vm.canFocusSessions ? "Tab 切换" : "", "↑↓ 选择", enterHint, "Esc 取消"];
+    lines.push(frame(this.theme.fg("dim", hints.filter(Boolean).join(" · "))));
     lines.push(frame(this.theme.fg("dim", "Ctrl+P pin · Alt+↑↓ 移动置顶 · Ctrl+R 重命名 · Ctrl+Y 复制路径")));
     lines.push(pair(
       this.theme.fg(projectsActive ? "accent" : "borderMuted", "─".repeat(leftWidth)),
@@ -212,7 +219,7 @@ export class GoSelector implements Component, Focusable {
       const p = this.vm.projectRows[this.vm.projectScroll + offset];
       const s = this.vm.sessionRows[this.vm.sessionScroll + offset];
       let left = offset === 0 && !this.vm.projectRows.length ? this.theme.fg("dim", "无匹配项目") : "";
-      let right = offset === 0 && !this.vm.sessionRows.length ? this.theme.fg("dim", "请调整项目搜索") : "";
+      let right = offset === 0 && !this.vm.sessionRows.length ? this.theme.fg("dim", this.vm.selectedProject.kind === "none" ? "请调整项目搜索" : "无匹配会话") : "";
       if (p) {
         const project = p.kind === "project" ? this.vm.catalog.projects.get(p.id)
           : p.kind === "pinned-sessions" ? this.vm.catalog.pinnedSessionsGroup : undefined;
@@ -222,10 +229,10 @@ export class GoSelector implements Component, Focusable {
           selected, projectsActive, leftWidth);
       }
       if (s) {
-        const session = s.kind === "session" ? this.vm.catalog.sessions.get(s.key) : undefined;
-        const selected = s.kind === "new" ? this.vm.selectedSession.kind === "new" : this.vm.session?.key === s.key;
+        const session = this.vm.catalog.sessions.get(s.key);
+        const selected = this.vm.session?.key === s.key;
         const projectName = session && (this.vm.selectedProject.kind === "all" || this.vm.selectedProject.kind === "pinned-sessions") ? ` [${this.vm.catalog.projects.get(session.projectId)?.name ?? ""}]` : "";
-        right = styleRow(`${selected ? "›" : " "} ${session?.pinned ? "★ " : "  "}${session ? session.name + projectName : "＋ 新建会话"}`,
+        right = styleRow(`${selected ? "›" : " "} ${session?.pinned ? "★ " : "  "}${session ? session.name + projectName : ""}`,
           selected, sessionsActive, rightWidth);
       }
       lines.push(pair(left, right));

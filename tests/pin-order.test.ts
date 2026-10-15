@@ -75,7 +75,7 @@ test("Alt+Down/Up reorders pinned projects, preserving selection, queries and vi
 test("project session scope swaps visible pins without moving the hidden global pin", async t => {
   const f = await fixture(t);
   f.selector.vm.activePane = "sessions";
-  f.selector.vm.move(1); // /s/a, with /s/b belonging to another project.
+  assert.equal(f.selector.vm.session?.key, "/s/a"); // /s/b belongs to another project.
   f.selector.handleInput("\x1b[1;3B"); await f.settled();
   assert.deepEqual(sessions(f.selector), ["/s/c", "/s/a", "/s/ordinary"]);
   assert.equal(f.selector.vm.session?.key, "/s/a");
@@ -106,7 +106,7 @@ test("filtered project pins swap only visible neighbors; boundaries and ordinary
   f.selector.handleInput("\x1b[1;3A");
   assert.equal(f.moves(), before);
   assert.match(f.selector.render(100).join("\n"), /只能移动已 pin/);
-  f.selector.vm.selectedSession = { kind: "new" };
+  f.selector.vm.setQuery("no-matching-session");
   f.selector.handleInput("\x1b[1;3B");
   assert.equal(f.moves(), before);
 });
@@ -144,7 +144,7 @@ test("virtual pinned-session group moves among pinned projects without a fake cw
   await assert.rejects(f.store.patchProject(PINNED_SESSIONS_GROUP_ID, { pinned: false }), /不能取消 pin/);
   f.selector.vm.activePane = "sessions";
   assert.deepEqual(sessions(f.selector), ["/s/a", "/s/b", "/s/c"]);
-  f.selector.vm.move(2); // /s/b belongs to another project.
+  f.selector.vm.move(1); // /s/b belongs to another project.
   f.selector.handleInput("\x19"); await sleep(5);
   assert.deepEqual(f.copied, ["/work/b"]);
 });
@@ -169,7 +169,7 @@ test("pinned sessions remain in original project and virtual group, with shared 
   const f = await fixture(t);
   f.selector.vm.activePane = "sessions";
   assert.deepEqual(sessions(f.selector), ["/s/a", "/s/c", "/s/ordinary"]);
-  f.selector.vm.move(1);
+  assert.equal(f.selector.vm.session?.key, "/s/a");
   f.selector.handleInput("\x1b[1;3B"); await f.settled();
   assert.deepEqual(sessions(f.selector), ["/s/c", "/s/a", "/s/ordinary"]);
   f.selector.vm.selectProject({ kind: "pinned-sessions" });

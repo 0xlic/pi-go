@@ -81,7 +81,81 @@ test("Tab preserves queries, project change clears session input; Enter restores
   assert.equal(selector.vm.sessionQuery, "中文");
   selector.handleInput("\x1b[Z"); assert.equal(selector.vm.sessionQuery, "中文");
   selector.handleInput("\x1b[A"); assert.equal(selector.vm.sessionQuery, "");
-  selector.handleInput("\t"); selector.handleInput("\x1b[B"); selector.handleInput("\r");
+  selector.handleInput("\t"); selector.handleInput("\r");
+  assert.deepEqual(actions, [{ kind: "restore", path: "/s/a" }]);
+});
+
+test("Enter on a filtered project creates directly; Tab then Enter restores without Down", () => {
+  const create = fixture();
+  create.selector.handleInput("/work/a");
+  assert.match(create.selector.render(100).join("\n"), /Enter 新建会话/);
+  assert.doesNotMatch(create.selector.render(100).join("\n"), /Enter 恢复会话/);
+  create.selector.handleInput("\r");
+  assert.deepEqual(create.actions, [{ kind: "create", cwd: "/work/a" }]);
+
+  const restore = fixture();
+  restore.selector.handleInput("/work/a");
+  restore.selector.handleInput("\t");
+  assert.equal(restore.selector.vm.session?.key, "/s/a");
+  assert.match(restore.selector.render(100).join("\n"), /Enter 恢复会话/);
+  assert.doesNotMatch(restore.selector.render(100).join("\n"), /Enter 新建会话/);
+  restore.selector.handleInput("\r");
+  assert.deepEqual(restore.actions, [{ kind: "restore", path: "/s/a" }]);
+  assert.doesNotMatch(restore.selector.render(100).join("\n"), /＋ 新建会话/);
+});
+
+test("projects without sessions keep focus on the left and only offer creation", () => {
+  const { selector, actions } = fixture();
+  selector.vm.catalog.sessions.clear();
+  selector.vm.refresh();
+  for (const key of ["\t", "\x1b[Z"]) {
+    selector.handleInput(key);
+    assert.equal(selector.vm.activePane, "projects");
+  }
+  const screen = selector.render(100).join("\n");
+  assert.match(screen, /Enter 新建会话/);
+  assert.doesNotMatch(screen, /Tab 切换|Enter 恢复会话/);
+  assert.equal(screen.split(CURSOR_MARKER).length - 1, 1);
+  selector.handleInput("\r");
+  assert.deepEqual(actions, [{ kind: "create", cwd: "/work/a" }]);
+});
+
+test("removing all sessions returns focus to projects", () => {
+  const { selector } = fixture();
+  selector.handleInput("\t");
+  selector.vm.catalog.sessions.clear();
+  selector.vm.refresh();
+  assert.equal(selector.vm.activePane, "projects");
+});
+
+test("Enter on empty session results does not create; left pane still creates", () => {
+  const { selector, actions } = fixture();
+  selector.handleInput("\t");
+  selector.handleInput("missing-session");
+  selector.handleInput("\r");
+  assert.deepEqual(actions, []);
+  assert.equal(selector.vm.session, undefined);
+  assert.equal(selector.vm.activePane, "sessions");
+  assert.match(selector.render(100).join("\n"), /无匹配会话/);
+  assert.doesNotMatch(selector.render(100).join("\n"), /Enter 恢复会话|Enter 新建会话/);
+  selector.handleInput("\t"); selector.handleInput("\r");
+  assert.deepEqual(actions, [{ kind: "create", cwd: "/work/a" }]);
+});
+
+test("Enter on all projects opens directory form; pinned group enters sessions", () => {
+  const { selector, actions } = fixture();
+  selector.vm.selectProject({ kind: "all" });
+  selector.handleInput("\r");
+  assert.match(selector.render(100).join("\n"), /选择目录/);
+  assert.deepEqual(actions, []);
+  selector.handleInput("\x1b");
+  selector.vm.catalog.sessions.get("/s/a")!.pinned = true;
+  // The group is normally rebuilt by the pin callback.
+  selector.vm.catalog.pinnedSessionsGroup = { id: "pi-go:pinned-sessions", name: "【置顶会话】", pinned: true, lastUsedAt: 1, searchFields: [] };
+  selector.vm.selectProject({ kind: "pinned-sessions" });
+  selector.handleInput("\r");
+  assert.equal(selector.vm.activePane, "sessions");
+  selector.handleInput("\r");
   assert.deepEqual(actions, [{ kind: "restore", path: "/s/a" }]);
 });
 
@@ -125,7 +199,7 @@ test("typing a unique project hides all-project row and Tab immediately searches
   assert.equal(selector.vm.project?.cwd, "/work/a");
   assert.doesNotMatch(selector.render(100).join("\n"), /所有项目/);
   selector.handleInput("\t"); selector.handleInput("中文");
-  assert.equal(selector.vm.sessionRows.length, 2);
+  assert.equal(selector.vm.sessionRows.length, 1);
 });
 
 test("empty project results render zero counts and Enter cannot create or restore", () => {

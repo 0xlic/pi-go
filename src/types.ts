@@ -51,5 +51,5 @@ export interface Catalog {
   pinnedSessionsGroup?: PinnedSessionsGroup;
 }
 export type ProjectRow = { kind: "all" } | { kind: "pinned-sessions" } | { kind: "project"; id: string };
-export type SessionRow = { kind: "new" } | { kind: "session"; key: string };
+export type SessionRow = { kind: "session"; key: string };
 export type GoAction = { kind: "restore"; path: string } | { kind: "create"; cwd: string };

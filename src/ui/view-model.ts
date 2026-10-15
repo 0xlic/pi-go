@@ -5,14 +5,15 @@ import { PINNED_SESSIONS_GROUP_ID, type Catalog, type Project, type ProjectRow, 
 
 type ProjectSelection = ProjectRow | { kind: "none" };
 function projectKey(row: ProjectSelection): string { return row.kind === "project" ? row.id : row.kind; }
-function sessionKey(row: SessionRow): string { return row.kind === "new" ? "new" : row.key; }
+type SessionSelection = SessionRow | { kind: "none" };
+function sessionKey(row: SessionSelection): string { return row.kind === "none" ? "none" : row.key; }
 
 export class ViewModel {
   activePane: "projects" | "sessions" = "projects";
   projectQuery = "";
   sessionQuery = "";
   selectedProject: ProjectSelection;
-  selectedSession: SessionRow = { kind: "new" };
+  selectedSession: SessionSelection = { kind: "none" };
   projectRows: ProjectRow[] = [];
   sessionRows: SessionRow[] = [];
   projectScroll = 0;
@@ -31,7 +32,16 @@ export class ViewModel {
   get session(): GoSession | undefined {
     return this.selectedSession.kind === "session" ? this.catalog.sessions.get(this.selectedSession.key) : undefined;
   }
-  togglePane(): void { this.activePane = this.activePane === "projects" ? "sessions" : "projects"; }
+  get canFocusSessions(): boolean {
+    const selected = this.selectedProject;
+    return [...this.catalog.sessions.values()].some(s => selected.kind === "all"
+      || (selected.kind === "pinned-sessions" && s.pinned)
+      || (selected.kind === "project" && s.projectId === selected.id));
+  }
+  togglePane(): void {
+    if (this.activePane === "sessions") this.activePane = "projects";
+    else if (this.canFocusSessions) this.activePane = "sessions";
+  }
   setQuery(query: string): void {
     if (this.activePane === "projects") this.projectQuery = query;
     else this.sessionQuery = query;
@@ -41,7 +51,7 @@ export class ViewModel {
     if (projectKey(this.selectedProject) !== projectKey(row)) {
       this.selectedProject = row;
       this.sessionQuery = "";
-      this.selectedSession = { kind: "new" };
+      this.selectedSession = { kind: "none" };
       this.sessionScroll = 0;
     }
     this.refresh();
@@ -57,7 +67,7 @@ export class ViewModel {
       if (projectKey(next) !== projectKey(this.selectedProject)) {
         this.selectedProject = next;
         this.sessionQuery = "";
-        this.selectedSession = { kind: "new" };
+        this.selectedSession = { kind: "none" };
         this.sessionScroll = 0;
       }
     }
@@ -65,8 +75,11 @@ export class ViewModel {
     const sessions = [...this.catalog.sessions.values()]
       .filter(s => (selected.kind === "all" || (selected.kind === "pinned-sessions" && s.pinned) || (selected.kind === "project" && s.projectId === selected.id)) && matches(this.sessionQuery, [s.searchTitle]))
       .sort((a, b) => compareEntries(a, b) || a.key.localeCompare(b.key));
-    this.sessionRows = selected.kind === "none" ? [] : [{ kind: "new" }, ...sessions.map(s => ({ kind: "session" as const, key: s.key }))];
-    if (!this.sessionRows.some(row => sessionKey(row) === sessionKey(this.selectedSession))) this.selectedSession = { kind: "new" };
+    if (!this.canFocusSessions) this.activePane = "projects";
+    this.sessionRows = sessions.map(s => ({ kind: "session" as const, key: s.key }));
+    if (!this.sessionRows.some(row => sessionKey(row) === sessionKey(this.selectedSession))) {
+      this.selectedSession = this.sessionRows[0] ?? { kind: "none" };
+    }
   }
   move(delta: number): void {
     if (this.activePane === "projects") {
