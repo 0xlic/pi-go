@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
-import { normalizePath, safeText } from "./path-utils.ts";
+import { isTemporaryPath, normalizePath, safeText } from "./path-utils.ts";
 import { searchText } from "./search.ts";
 import type { CatalogAvailability } from "./catalog-availability.ts";
 import { PINNED_SESSIONS_GROUP_ID, type Catalog, type Metadata, type Project, type PinnedSessionsGroup } from "./types.ts";
@@ -14,7 +14,7 @@ export function buildCatalog(infos: readonly SessionInfo[], metadata: Metadata, 
   const sessions: Catalog["sessions"] = new Map();
   function addProject(cwd: string): Project | undefined {
     const id = normalizePath(cwd);
-    if (availability && !availability.projectPaths.has(id)) return undefined;
+    if (isTemporaryPath(id) || (availability && !availability.projectPaths.has(id))) return undefined;
     const existing = projects.get(id);
     if (existing) return existing;
     const meta = metadata.projects[id];
@@ -33,13 +33,16 @@ export function buildCatalog(infos: readonly SessionInfo[], metadata: Metadata, 
     if (!info.cwd) continue;
     const key = normalizePath(info.path);
     if (sessions.has(key) || (availability && !availability.sessionPaths.has(key))) continue;
-    const project = addProject(info.cwd);
-    if (!project) continue;
+    const cwd = normalizePath(info.cwd);
+    const temporary = isTemporaryPath(cwd) || isTemporaryPath(key);
+    if (availability && !availability.projectPaths.has(cwd)) continue;
+    const project = temporary ? undefined : addProject(cwd);
+    if (!temporary && !project) continue;
     const meta = metadata.sessions[key];
     const name = safeText(info.name?.trim() || info.firstMessage?.trim() || `未命名会话 ${info.id.slice(0, 8)}`);
-    sessions.set(key, { key, projectId: project.id, name, pinned: !!meta?.pinned,
+    sessions.set(key, { key, projectId: cwd, cwd, temporary, name, pinned: !!meta?.pinned,
       pinOrder: meta?.pinOrder, lastUsedAt: meta?.lastUsedAt ?? (info.modified.getTime() || 0), searchTitle: searchText(name) });
-    project.sessionKeys.push(key);
+    project?.sessionKeys.push(key);
   }
   // Explicit visit records take precedence; file activity is only a fallback.
   for (const project of projects.values()) {
@@ -51,7 +54,11 @@ export function buildCatalog(infos: readonly SessionInfo[], metadata: Metadata, 
   }
   const pinned = [...sessions.values()].filter(session => session.pinned);
   const name = "【置顶会话】";
-  return { projects, sessions, pinnedSessionsGroup: pinned.length ? {
+  const temporaryName = "【临时会话】";
+  return { projects, sessions,
+    temporarySessionsGroup: [...sessions.values()].some(session => session.temporary)
+      ? { name: temporaryName, searchFields: [searchText(temporaryName)] } : undefined,
+    pinnedSessionsGroup: pinned.length ? {
     id: PINNED_SESSIONS_GROUP_ID, name, pinned: true,
     pinOrder: metadata.pinnedSessionsGroup?.pinOrder,
     lastUsedAt: Math.max(...pinned.map(session => session.lastUsedAt)),

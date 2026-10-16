@@ -20,7 +20,9 @@ export class ViewModel {
   sessionScroll = 0;
 
   constructor(public catalog: Catalog, currentCwd: string) {
-    this.selectedProject = catalog.projects.has(currentCwd) ? { kind: "project", id: currentCwd } : { kind: "all" };
+    this.selectedProject = catalog.projects.has(currentCwd) ? { kind: "project", id: currentCwd }
+      : catalog.temporarySessionsGroup && [...catalog.sessions.values()].some(s => s.temporary && s.projectId === currentCwd)
+        ? { kind: "temporary-sessions" } : { kind: "all" };
     this.refresh();
   }
   get project(): Project | undefined {
@@ -35,6 +37,7 @@ export class ViewModel {
   get canFocusSessions(): boolean {
     const selected = this.selectedProject;
     return [...this.catalog.sessions.values()].some(s => selected.kind === "all"
+      || (selected.kind === "temporary-sessions" && s.temporary)
       || (selected.kind === "pinned-sessions" && s.pinned)
       || (selected.kind === "project" && s.projectId === selected.id));
   }
@@ -61,6 +64,10 @@ export class ViewModel {
       .sort((a, b) => compareEntries(a, b) || a.id.localeCompare(b.id));
     this.projectRows = projects.map(p => p.id === PINNED_SESSIONS_GROUP_ID
       ? { kind: "pinned-sessions" as const } : { kind: "project" as const, id: p.id });
+    const temporary = this.catalog.temporarySessionsGroup;
+    if (temporary && matches(this.projectQuery, temporary.searchFields)) {
+      this.projectRows.unshift({ kind: "temporary-sessions" });
+    }
     if (!this.projectQuery.trim()) this.projectRows.unshift({ kind: "all" });
     if (!this.projectRows.some(row => projectKey(row) === projectKey(this.selectedProject))) {
       const next: ProjectSelection = this.projectRows[0] ?? { kind: "none" };
@@ -73,7 +80,7 @@ export class ViewModel {
     }
     const selected = this.selectedProject;
     const sessions = [...this.catalog.sessions.values()]
-      .filter(s => (selected.kind === "all" || (selected.kind === "pinned-sessions" && s.pinned) || (selected.kind === "project" && s.projectId === selected.id)) && matches(this.sessionQuery, [s.searchTitle]))
+      .filter(s => (selected.kind === "all" || (selected.kind === "temporary-sessions" && s.temporary) || (selected.kind === "pinned-sessions" && s.pinned) || (selected.kind === "project" && s.projectId === selected.id)) && matches(this.sessionQuery, [s.searchTitle]))
       .sort((a, b) => compareEntries(a, b) || a.key.localeCompare(b.key));
     if (!this.canFocusSessions) this.activePane = "projects";
     this.sessionRows = sessions.map(s => ({ kind: "session" as const, key: s.key }));

@@ -1,10 +1,16 @@
 import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 
 export function normalizePath(path: string, base = process.cwd()): string {
   const expanded = path === "~" ? homedir() : path.startsWith("~/") ? `${homedir()}/${path.slice(2)}` : path;
   return resolve(base, expanded);
+}
+
+export function isTemporaryPath(path: string): boolean {
+  const root = normalizePath("~/.pi/agent/pi-temp-sessions");
+  const normalized = normalizePath(path);
+  return normalized === root || normalized.startsWith(root + sep);
 }
 
 // Never allow transcript names or filesystem paths to inject terminal controls.

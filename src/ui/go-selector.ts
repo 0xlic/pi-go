@@ -134,7 +134,8 @@ export class GoSelector implements Component, Focusable {
     else if (matchesKey(data, Key.ctrl("y"))) {
       const sessionProject = this.vm.activePane === "sessions" && this.vm.session
         ? this.vm.catalog.projects.get(this.vm.session.projectId) : undefined;
-      const project = sessionProject ?? this.vm.project;
+      const project = sessionProject ?? (this.vm.activePane === "sessions" && this.vm.session?.cwd
+        ? { cwd: this.vm.session.cwd } : this.vm.project);
       if (project) {
         void this.run(() => this.callbacks.copyPath(project.cwd), `已复制项目目录：${safeText(project.cwd)}`);
       } else this.message = "请先选择具体项目或会话，再复制项目目录";
@@ -201,7 +202,7 @@ export class GoSelector implements Component, Focusable {
     const enterHint = this.vm.activePane === "sessions"
       ? (this.vm.session ? "Enter 恢复会话" : "")
       : this.vm.project || this.vm.selectedProject.kind === "all" ? "Enter 新建会话"
-        : this.vm.selectedProject.kind === "pinned-sessions" && this.vm.canFocusSessions ? "Enter 选择会话" : "";
+        : (this.vm.selectedProject.kind === "pinned-sessions" || this.vm.selectedProject.kind === "temporary-sessions") && this.vm.canFocusSessions ? "Enter 选择会话" : "";
     const hints = [this.vm.canFocusSessions ? "Tab 切换" : "", "↑↓ 选择", enterHint, "Esc 取消"];
     lines.push(frame(this.theme.fg("dim", hints.filter(Boolean).join(" · "))));
     lines.push(frame(this.theme.fg("dim", "Ctrl+P pin · Alt+↑↓ 移动置顶 · Ctrl+R 重命名 · Ctrl+Y 复制路径")));
@@ -222,16 +223,17 @@ export class GoSelector implements Component, Focusable {
       let right = offset === 0 && !this.vm.sessionRows.length ? this.theme.fg("dim", this.vm.selectedProject.kind === "none" ? "请调整项目搜索" : "无匹配会话") : "";
       if (p) {
         const project = p.kind === "project" ? this.vm.catalog.projects.get(p.id)
-          : p.kind === "pinned-sessions" ? this.vm.catalog.pinnedSessionsGroup : undefined;
+          : p.kind === "pinned-sessions" ? this.vm.catalog.pinnedSessionsGroup
+            : p.kind === "temporary-sessions" ? { ...this.vm.catalog.temporarySessionsGroup!, pinned: false } : undefined;
         const selected = p.kind === "all" ? this.vm.selectedProject.kind === "all"
-          : p.kind === "pinned-sessions" ? this.vm.selectedProject.kind === "pinned-sessions" : this.vm.project?.id === p.id;
+          : p.kind === "pinned-sessions" || p.kind === "temporary-sessions" ? this.vm.selectedProject.kind === p.kind : this.vm.project?.id === p.id;
         left = styleRow(`${selected ? "›" : " "} ${project?.pinned ? "★ " : "  "}${project?.name ?? "所有项目"}`,
           selected, projectsActive, leftWidth);
       }
       if (s) {
         const session = this.vm.catalog.sessions.get(s.key);
         const selected = this.vm.session?.key === s.key;
-        const projectName = session && (this.vm.selectedProject.kind === "all" || this.vm.selectedProject.kind === "pinned-sessions") ? ` [${this.vm.catalog.projects.get(session.projectId)?.name ?? ""}]` : "";
+        const projectName = session && (this.vm.selectedProject.kind === "all" || this.vm.selectedProject.kind === "pinned-sessions") ? ` [${(session.temporary ? this.vm.catalog.temporarySessionsGroup?.name : this.vm.catalog.projects.get(session.projectId)?.name) ?? ""}]` : "";
         right = styleRow(`${selected ? "›" : " "} ${session?.pinned ? "★ " : "  "}${session ? session.name + projectName : ""}`,
           selected, sessionsActive, rightWidth);
       }
@@ -239,8 +241,9 @@ export class GoSelector implements Component, Focusable {
     }
     lines.push(pair(this.theme.fg("dim", `${this.vm.projectRows.filter(row => row.kind === "project").length} 个项目`), this.theme.fg("dim", `${this.vm.sessionRows.filter(row => row.kind === "session").length} 个会话`)));
     const detail = this.vm.activePane === "sessions" && this.vm.session
-      ? this.vm.catalog.projects.get(this.vm.session.projectId)?.cwd ?? "项目目录不可用"
+      ? this.vm.session.cwd ?? this.vm.catalog.projects.get(this.vm.session.projectId)?.cwd ?? "项目目录不可用"
       : this.vm.project?.cwd ?? (this.vm.selectedProject.kind === "none" ? "没有匹配项目"
+        : this.vm.selectedProject.kind === "temporary-sessions" ? "【临时会话】 · ~/.pi/agent/pi-temp-sessions"
         : this.vm.selectedProject.kind === "pinned-sessions" ? "【置顶会话】 · 所有项目的置顶会话" : "所有项目 · 全局会话搜索");
     lines.push(frame(this.theme.fg(this.message ? "warning" : "dim", this.message || safeText(detail))));
     lines.push(border("╰", "╯"));

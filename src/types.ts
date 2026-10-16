@@ -30,6 +30,8 @@ export interface Project {
 export interface GoSession {
   key: string;
   projectId: string;
+  cwd?: string;
+  temporary?: boolean;
   name: string;
   pinned: boolean;
   lastUsedAt: number;
@@ -49,7 +51,8 @@ export interface Catalog {
   projects: Map<string, Project>;
   sessions: Map<string, GoSession>;
   pinnedSessionsGroup?: PinnedSessionsGroup;
+  temporarySessionsGroup?: { name: string; searchFields: string[] };
 }
-export type ProjectRow = { kind: "all" } | { kind: "pinned-sessions" } | { kind: "project"; id: string };
+export type ProjectRow = { kind: "all" } | { kind: "temporary-sessions" } | { kind: "pinned-sessions" } | { kind: "project"; id: string };
 export type SessionRow = { kind: "session"; key: string };
 export type GoAction = { kind: "restore"; path: string } | { kind: "create"; cwd: string };
