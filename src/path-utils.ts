@@ -1,16 +1,26 @@
 import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { resolve, sep } from "node:path";
+import { posix, resolve, win32 } from "node:path";
 
 export function normalizePath(path: string, base = process.cwd()): string {
   const expanded = path === "~" ? homedir() : path.startsWith("~/") ? `${homedir()}/${path.slice(2)}` : path;
   return resolve(base, expanded);
 }
 
+export function isPathWithin(path: string, directory: string, platform = process.platform): boolean {
+  const paths = platform === "win32" ? win32 : posix;
+  // Fold only comparison keys on Windows; preserve stored and displayed paths.
+  const comparisonKey = (value: string) => {
+    const normalized = paths.resolve(value);
+    return platform === "win32" ? normalized.toLowerCase() : normalized;
+  };
+  const root = comparisonKey(directory);
+  const normalized = comparisonKey(path);
+  return normalized === root || normalized.startsWith(root.endsWith(paths.sep) ? root : root + paths.sep);
+}
+
 export function isTemporaryPath(path: string): boolean {
-  const root = normalizePath("~/.pi/agent/pi-temp-sessions");
-  const normalized = normalizePath(path);
-  return normalized === root || normalized.startsWith(root + sep);
+  return isPathWithin(normalizePath(path), normalizePath("~/.pi/agent/pi-temp-sessions"));
 }
 
 // Never allow transcript names or filesystem paths to inject terminal controls.

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { buildCatalog } from "../src/catalog.ts";
 import { emptyMetadata } from "../src/metadata-store.ts";
-import { isTemporaryPath, normalizePath } from "../src/path-utils.ts";
+import { isPathWithin, isTemporaryPath, normalizePath } from "../src/path-utils.ts";
 import { ViewModel } from "../src/ui/view-model.ts";
 
 const root = normalizePath("~/.pi/agent/pi-temp-sessions");
@@ -16,6 +16,27 @@ test("temporary paths use directory boundaries", () => {
   assert.ok(isTemporaryPath(root));
   assert.ok(isTemporaryPath(root + "/2026-01-01"));
   assert.equal(isTemporaryPath(root + "-other/2026-01-01"), false);
+});
+
+test("Windows directory matching ignores case and accepts either separator", () => {
+  const directory = "C:\\Users\\Alice\\.pi\\agent\\pi-temp-sessions";
+  for (const path of [
+    "c:\\users\\alice\\.PI\\agent\\PI-TEMP-SESSIONS",
+    "c:\\users\\alice\\.pi\\agent\\pi-temp-sessions\\2026-01-01",
+    "C:/Users/ALICE/.pi/agent/pi-temp-sessions/2026-01-01",
+  ]) assert.ok(isPathWithin(path, directory, "win32"), path);
+  for (const path of [
+    "C:/Users/Alice/.pi/agent/pi-temp-sessions-other/2026-01-01",
+    "D:/Users/Alice/.pi/agent/pi-temp-sessions/2026-01-01",
+    "C:/Users/Alice/.pi/agent/pi-temp-sessions/../other",
+  ]) assert.equal(isPathWithin(path, directory, "win32"), false, path);
+  assert.ok(isPathWithin("c:/Users/Alice", "C:\\", "win32"));
+});
+
+test("POSIX directory matching remains case-sensitive", () => {
+  assert.ok(isPathWithin("/home/alice/temp/session", "/home/alice/temp", "linux"));
+  assert.equal(isPathWithin("/home/Alice/temp/session", "/home/alice/temp", "linux"), false);
+  assert.equal(isPathWithin("/home/alice/temp-other", "/home/alice/temp", "linux"), false);
 });
 
 test("temporary sessions aggregate below all projects without dated project entries", () => {
