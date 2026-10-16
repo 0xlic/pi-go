@@ -118,7 +118,7 @@ export class GoSelector implements Component, Focusable {
       this.vm.refresh();
       this.confirmation = confirmation.kind === "project"
         ? { ...confirmation, kind: "folder", yes: false } : undefined;
-    }, confirmation.kind === "project" ? "项目及其会话已删除；文件夹尚未删除" : "已删除");
+    }, confirmation.kind === "project" ? "第 1 步完成：会话已删除，项目目录仍保留" : "已删除");
   }
 
   private openDirectory(): void {
@@ -228,13 +228,13 @@ export class GoSelector implements Component, Focusable {
     if (this.confirmation) {
       const confirmation = this.confirmation;
       const title = confirmation.kind === "session" ? "确认删除会话？"
-        : confirmation.kind === "project" ? `确认删除项目及其全部 ${confirmation.count} 个会话？` : "是否同时永久删除项目文件夹及其全部内容？";
+        : confirmation.kind === "project" ? `第 1 步：确认删除此项目的全部 ${confirmation.count} 个会话？` : "第 2 步：是否删除项目目录及其全部内容？";
       lines.push(frame(this.theme.bold(title)));
       lines.push(frame(safeText(confirmation.name)));
       lines.push(frame(safeText(confirmation.kind === "session" ? confirmation.key : confirmation.cwd)));
       lines.push(frame(this.theme.fg("warning", confirmation.kind === "folder"
         ? "危险：包括子目录及非会话文件，删除后不可恢复！"
-        : confirmation.kind === "project" ? "删除后不可恢复。文件夹在下一步单独确认。" : "仅删除此会话文件，删除后不可恢复。")));
+        : confirmation.kind === "project" ? "本步仅删除会话，不删除项目目录；目录下一步确认。" : "仅删除此会话文件，删除后不可恢复。")));
       lines.push(frame(confirmation.yes ? "  否    [是，删除]" : "[否]    是，删除"));
       lines.push(frame(this.theme.fg("dim", "Tab 切换 · Enter 确认 · Esc 取消")));
       lines.push(frame(this.theme.fg("warning", this.message)), border("╰", "╯"));

@@ -226,13 +226,16 @@ test("project deletion asks separately about folder; Enter defaults to retaining
   for (const removeFolder of [false, true]) {
     const { selector, deleted } = fixture();
     selector.handleInput("\x04");
-    assert.match(selector.render(100).join("\n"), /全部 1 个会话/);
+    assert.match(selector.render(100).join("\n"), /第 1 步：确认删除此项目的全部 1 个会话/);
+    assert.match(selector.render(100).join("\n"), /本步仅删除会话，不删除项目目录/);
+    assert.doesNotMatch(selector.render(100).join("\n"), /确认删除项目及其/);
     selector.handleInput("\t"); selector.handleInput("\r");
     // Repeated Enter during the asynchronous operation cannot accept the next dialog.
     selector.handleInput("\r");
     await sleep(5);
     assert.deepEqual(deleted, ["project:/work/a"]);
-    assert.match(selector.render(100).join("\n"), /永久删除项目文件夹/);
+    assert.match(selector.render(100).join("\n"), /第 2 步：是否删除项目目录及其全部内容/);
+    assert.match(selector.render(100).join("\n"), /第 1 步完成：会话已删除，项目目录仍保留/);
     assert.match(selector.render(100).join("\n"), /\[否\]/);
     for (const width of [54, 80, 120]) assert.ok(selector.render(width).every(line => visibleWidth(line) <= width));
     if (removeFolder) selector.handleInput("\t");
@@ -260,7 +263,7 @@ test("deletion errors are visible and do not advance to folder deletion", async 
   selector.handleInput("\x04"); selector.handleInput("\t"); selector.handleInput("\r");
   await sleep(5);
   assert.match(selector.render(100).join("\n"), /拒绝删除/);
-  assert.doesNotMatch(selector.render(100).join("\n"), /永久删除项目文件夹/);
+  assert.doesNotMatch(selector.render(100).join("\n"), /第 2 步/);
   assert.deepEqual(deleted, []);
 });
 
