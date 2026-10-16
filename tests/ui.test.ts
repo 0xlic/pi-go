@@ -8,7 +8,7 @@ import { emptyMetadata } from "../src/metadata-store.ts";
 import type { GoAction } from "../src/types.ts";
 import { GoSelector, type SelectorCallbacks } from "../src/ui/go-selector.ts";
 
-const theme = { fg: (_: string, s: string) => `\x1b[36m${s}\x1b[39m`, bg: (_: string, s: string) => `\x1b[44m${s}\x1b[49m`, bold: (s: string) => s } as Theme;
+const theme = { fg: (color: string, s: string) => `\x1b[${color === "error" ? 31 : 36}m${s}\x1b[39m`, bg: (_: string, s: string) => `\x1b[44m${s}\x1b[49m`, bold: (s: string) => s } as Theme;
 const kb = { matches: () => false } as unknown as KeybindingsManager;
 function fixture() {
   const meta = emptyMetadata();
@@ -206,15 +206,18 @@ test("typing a unique project hides all-project row and Tab immediately searches
   assert.equal(selector.vm.sessionRows.length, 1);
 });
 
-test("Ctrl+D requires confirmation for sessions and defaults to no", async () => {
+test("Ctrl+D defaults to yes for sessions; Tab selects no and Esc cancels", async () => {
   const { selector, deleted, actions } = fixture();
   selector.handleInput("\t"); selector.handleInput("\x04");
   assert.match(selector.render(100).join("\n"), /确认删除会话/);
+  assert.match(selector.render(100).join("\n"), /\x1b\[44m\x1b\[31m\[是，删除\]/);
+  selector.handleInput("\t");
+  assert.match(selector.render(100).join("\n"), /\x1b\[44m\x1b\[36m\[否\]/);
   selector.handleInput("\r");
   assert.deepEqual(deleted, []);
   selector.handleInput("\x04"); selector.handleInput("\x1b");
   assert.deepEqual(deleted, []);
-  selector.handleInput("\x04"); selector.handleInput("\t"); selector.handleInput("\r");
+  selector.handleInput("\x04"); selector.handleInput("\r");
   await sleep(5);
   assert.deepEqual(deleted, ["session:/s/a"]);
   assert.deepEqual(actions, []);
@@ -229,16 +232,20 @@ test("project deletion asks separately about folder; Enter defaults to retaining
     assert.match(selector.render(100).join("\n"), /第 1 步：确认删除此项目的全部 1 个会话/);
     assert.match(selector.render(100).join("\n"), /本步仅删除会话，不删除项目目录/);
     assert.doesNotMatch(selector.render(100).join("\n"), /确认删除项目及其/);
-    selector.handleInput("\t"); selector.handleInput("\r");
+    assert.match(selector.render(100).join("\n"), /\x1b\[44m\x1b\[31m\[是，删除\]/);
+    selector.handleInput("\r");
     // Repeated Enter during the asynchronous operation cannot accept the next dialog.
     selector.handleInput("\r");
     await sleep(5);
     assert.deepEqual(deleted, ["project:/work/a"]);
     assert.match(selector.render(100).join("\n"), /第 2 步：是否删除项目目录及其全部内容/);
     assert.match(selector.render(100).join("\n"), /第 1 步完成：会话已删除，项目目录仍保留/);
-    assert.match(selector.render(100).join("\n"), /\[否\]/);
+    assert.match(selector.render(100).join("\n"), /\x1b\[44m\x1b\[36m\[否\]/);
     for (const width of [54, 80, 120]) assert.ok(selector.render(width).every(line => visibleWidth(line) <= width));
-    if (removeFolder) selector.handleInput("\t");
+    if (removeFolder) {
+      selector.handleInput("\t");
+      assert.match(selector.render(100).join("\n"), /\x1b\[44m\x1b\[31m\[是，删除\]/);
+    }
     selector.handleInput("\r");
     await sleep(5);
     assert.deepEqual(deleted, removeFolder ? ["project:/work/a", "folder:/work/a"] : ["project:/work/a"]);
@@ -260,7 +267,7 @@ test("virtual project groups cannot be deleted", () => {
 test("deletion errors are visible and do not advance to folder deletion", async () => {
   const { selector, deleted, callbacks } = fixture();
   callbacks.deleteProject = async () => { throw new Error("拒绝删除"); };
-  selector.handleInput("\x04"); selector.handleInput("\t"); selector.handleInput("\r");
+  selector.handleInput("\x04"); selector.handleInput("\r");
   await sleep(5);
   assert.match(selector.render(100).join("\n"), /拒绝删除/);
   assert.doesNotMatch(selector.render(100).join("\n"), /第 2 步/);

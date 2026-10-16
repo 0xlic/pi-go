@@ -102,9 +102,9 @@ export class GoSelector implements Component, Focusable {
       return;
     }
     this.confirmation = session
-      ? { kind: "session", key: session.key, name: session.name, cwd: session.cwd ?? "", count: 1, yes: false }
+      ? { kind: "session", key: session.key, name: session.name, cwd: session.cwd ?? "", count: 1, yes: true }
       : { kind: "project", key: project!.id, name: project!.name, cwd: project!.cwd,
-        count: project!.sessionKeys.length, yes: false };
+        count: project!.sessionKeys.length, yes: true };
   }
   private confirmDelete(): void {
     const confirmation = this.confirmation!;
@@ -235,7 +235,11 @@ export class GoSelector implements Component, Focusable {
       lines.push(frame(this.theme.fg("warning", confirmation.kind === "folder"
         ? "危险：包括子目录及非会话文件，删除后不可恢复！"
         : confirmation.kind === "project" ? "本步仅删除会话，不删除项目目录；目录下一步确认。" : "仅删除此会话文件，删除后不可恢复。")));
-      lines.push(frame(confirmation.yes ? "  否    [是，删除]" : "[否]    是，删除"));
+      const selectedChoice = (label: string, destructive: boolean) => this.theme.bg("selectedBg",
+        this.theme.fg(destructive ? "error" : "accent", this.theme.bold(`[${label}]`)));
+      lines.push(frame(confirmation.yes
+        ? `  否    ${selectedChoice("是，删除", true)}`
+        : `${selectedChoice("否", false)}    是，删除`));
       lines.push(frame(this.theme.fg("dim", "Tab 切换 · Enter 确认 · Esc 取消")));
       lines.push(frame(this.theme.fg("warning", this.message)), border("╰", "╯"));
       return lines;
