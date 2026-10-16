@@ -26,6 +26,7 @@ test("temporary sessions aggregate below all projects without dated project entr
   const infos = [info("/sessions/temp", cwd), info(root + "/stored.jsonl", "/work/a"), info("/sessions/normal", "/work/a")];
   const catalog = buildCatalog(infos, meta, cwd);
   assert.deepEqual([...catalog.projects.keys()], ["/work/a"]);
+  assert.equal(catalog.temporarySessionsGroup?.name, "临时会话");
   const vm = new ViewModel(catalog, cwd);
   assert.deepEqual(vm.projectRows.slice(0, 2), [{ kind: "all" }, { kind: "temporary-sessions" }]);
   assert.equal(vm.selectedProject.kind, "temporary-sessions");

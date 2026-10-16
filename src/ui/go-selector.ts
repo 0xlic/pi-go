@@ -243,7 +243,7 @@ export class GoSelector implements Component, Focusable {
     const detail = this.vm.activePane === "sessions" && this.vm.session
       ? this.vm.session.cwd ?? this.vm.catalog.projects.get(this.vm.session.projectId)?.cwd ?? "项目目录不可用"
       : this.vm.project?.cwd ?? (this.vm.selectedProject.kind === "none" ? "没有匹配项目"
-        : this.vm.selectedProject.kind === "temporary-sessions" ? "【临时会话】 · ~/.pi/agent/pi-temp-sessions"
+        : this.vm.selectedProject.kind === "temporary-sessions" ? "临时会话 · ~/.pi/agent/pi-temp-sessions"
         : this.vm.selectedProject.kind === "pinned-sessions" ? "【置顶会话】 · 所有项目的置顶会话" : "所有项目 · 全局会话搜索");
     lines.push(frame(this.theme.fg(this.message ? "warning" : "dim", this.message || safeText(detail))));
     lines.push(border("╰", "╯"));

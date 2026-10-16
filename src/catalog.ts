@@ -54,7 +54,7 @@ export function buildCatalog(infos: readonly SessionInfo[], metadata: Metadata, 
   }
   const pinned = [...sessions.values()].filter(session => session.pinned);
   const name = "【置顶会话】";
-  const temporaryName = "【临时会话】";
+  const temporaryName = "临时会话";
   return { projects, sessions,
     temporarySessionsGroup: [...sessions.values()].some(session => session.temporary)
       ? { name: temporaryName, searchFields: [searchText(temporaryName)] } : undefined,
