@@ -36,6 +36,7 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
       pinProject: async (id, pinned) => { metadata = await store.patchProject(id, { pinned, pinOrder: undefined }); return catalog(); },
       pinSession: async (key, pinned) => { metadata = await store.patchSession(key, { pinned, pinOrder: undefined }); return catalog(); },
       rename: async () => catalog(), copyPath: async cwd => { copied.push(cwd); },
+      deleteSession: async () => catalog(), deleteProject: async () => catalog(), deleteFolder: async () => catalog(),
       movePin: async (kind, key, neighbor) => {
         moves++;
         const current = catalog();

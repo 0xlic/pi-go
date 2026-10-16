@@ -16,17 +16,21 @@ function fixture() {
     modified: new Date(1), created: new Date(1), messageCount: 0, firstMessage: "", allMessagesText: "" }], meta, "/work/a");
   const actions: (GoAction | null)[] = [];
   const copied: string[] = [];
+  const deleted: string[] = [];
   const callbacks: SelectorCallbacks = {
     pinProject: async (id, pinned) => { meta.projects[id] = { ...meta.projects[id], pinned }; return catalog(); },
     pinSession: async (id, pinned) => { meta.sessions[id] = { ...meta.sessions[id], pinned }; return catalog(); },
     rename: async (id, alias) => { meta.projects[id] = { ...meta.projects[id], alias }; return catalog(); },
     copyPath: async cwd => { copied.push(cwd); },
     movePin: async () => catalog(),
+    deleteSession: async key => { deleted.push(`session:${key}`); const result = catalog(); result.sessions.delete(key); return result; },
+    deleteProject: async id => { deleted.push(`project:${id}`); const result = catalog(); result.projects.delete(id); result.sessions.clear(); return result; },
+    deleteFolder: async cwd => { deleted.push(`folder:${cwd}`); return catalog(); },
   };
   const selector = new GoSelector({ requestRender: () => {}, terminal: { rows: 24 } } as Pick<TUI, "requestRender" | "terminal">,
     theme, kb, catalog(), "/work/a", callbacks, action => actions.push(action));
   selector.focused = true;
-  return { selector, actions, copied };
+  return { selector, actions, copied, deleted, callbacks };
 }
 
 test("dual pane rendering fits terminal columns, including ANSI, Chinese and cursor marker", () => {
@@ -200,6 +204,64 @@ test("typing a unique project hides all-project row and Tab immediately searches
   assert.doesNotMatch(selector.render(100).join("\n"), /所有项目/);
   selector.handleInput("\t"); selector.handleInput("中文");
   assert.equal(selector.vm.sessionRows.length, 1);
+});
+
+test("Ctrl+D requires confirmation for sessions and defaults to no", async () => {
+  const { selector, deleted, actions } = fixture();
+  selector.handleInput("\t"); selector.handleInput("\x04");
+  assert.match(selector.render(100).join("\n"), /确认删除会话/);
+  selector.handleInput("\r");
+  assert.deepEqual(deleted, []);
+  selector.handleInput("\x04"); selector.handleInput("\x1b");
+  assert.deepEqual(deleted, []);
+  selector.handleInput("\x04"); selector.handleInput("\t"); selector.handleInput("\r");
+  await sleep(5);
+  assert.deepEqual(deleted, ["session:/s/a"]);
+  assert.deepEqual(actions, []);
+  assert.equal(selector.vm.session, undefined);
+  assert.equal(selector.vm.activePane, "projects");
+});
+
+test("project deletion asks separately about folder; Enter defaults to retaining it", async () => {
+  for (const removeFolder of [false, true]) {
+    const { selector, deleted } = fixture();
+    selector.handleInput("\x04");
+    assert.match(selector.render(100).join("\n"), /全部 1 个会话/);
+    selector.handleInput("\t"); selector.handleInput("\r");
+    // Repeated Enter during the asynchronous operation cannot accept the next dialog.
+    selector.handleInput("\r");
+    await sleep(5);
+    assert.deepEqual(deleted, ["project:/work/a"]);
+    assert.match(selector.render(100).join("\n"), /永久删除项目文件夹/);
+    assert.match(selector.render(100).join("\n"), /\[否\]/);
+    for (const width of [54, 80, 120]) assert.ok(selector.render(width).every(line => visibleWidth(line) <= width));
+    if (removeFolder) selector.handleInput("\t");
+    selector.handleInput("\r");
+    await sleep(5);
+    assert.deepEqual(deleted, removeFolder ? ["project:/work/a", "folder:/work/a"] : ["project:/work/a"]);
+  }
+});
+
+test("virtual project groups cannot be deleted", () => {
+  for (const kind of ["all", "pinned-sessions", "temporary-sessions"] as const) {
+    const { selector, deleted } = fixture();
+    selector.vm.selectedProject = { kind };
+    selector.handleInput("\x04");
+    const screen = selector.render(100).join("\n");
+    assert.match(screen, /虚拟分组不能删除/);
+    assert.doesNotMatch(screen, /Ctrl\+D 删除|确认删除/);
+    assert.deepEqual(deleted, []);
+  }
+});
+
+test("deletion errors are visible and do not advance to folder deletion", async () => {
+  const { selector, deleted, callbacks } = fixture();
+  callbacks.deleteProject = async () => { throw new Error("拒绝删除"); };
+  selector.handleInput("\x04"); selector.handleInput("\t"); selector.handleInput("\r");
+  await sleep(5);
+  assert.match(selector.render(100).join("\n"), /拒绝删除/);
+  assert.doesNotMatch(selector.render(100).join("\n"), /永久删除项目文件夹/);
+  assert.deepEqual(deleted, []);
 });
 
 test("empty project results render zero counts and Enter cannot create or restore", () => {

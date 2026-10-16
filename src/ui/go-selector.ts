@@ -11,7 +11,18 @@ export interface SelectorCallbacks {
   pinSession(key: string, pinned: boolean): Promise<Catalog>;
   rename(id: string, alias: string | undefined): Promise<Catalog>;
   copyPath(cwd: string): Promise<void>;
+  deleteSession(key: string): Promise<Catalog>;
+  deleteProject(id: string): Promise<Catalog>;
+  deleteFolder(cwd: string): Promise<Catalog>;
   movePin(kind: "project" | "session", key: string, neighbor: string): Promise<Catalog>;
+}
+interface DeleteConfirmation {
+  kind: "session" | "project" | "folder";
+  key: string;
+  name: string;
+  cwd: string;
+  count: number;
+  yes: boolean;
 }
 interface Form {
   kind: "rename" | "directory";
@@ -30,6 +41,7 @@ export class GoSelector implements Component, Focusable {
   private projectInput: Input;
   private sessionInput: Input;
   private form?: Form;
+  private confirmation?: DeleteConfirmation;
   private busy = false;
   private message = "";
   private disposed = false;
@@ -48,8 +60,8 @@ export class GoSelector implements Component, Focusable {
   private syncInputs(): void {
     if (this.projectInput.getValue() !== this.vm.projectQuery) this.projectInput.setValue(this.vm.projectQuery);
     if (this.sessionInput.getValue() !== this.vm.sessionQuery) this.sessionInput.setValue(this.vm.sessionQuery);
-    this.projectInput.focused = this.hasFocus && !this.form && this.vm.activePane === "projects";
-    this.sessionInput.focused = this.hasFocus && !this.form && this.vm.activePane === "sessions";
+    this.projectInput.focused = this.hasFocus && !this.form && !this.confirmation && this.vm.activePane === "projects";
+    this.sessionInput.focused = this.hasFocus && !this.form && !this.confirmation && this.vm.activePane === "sessions";
     if (this.form) this.form.input.focused = this.hasFocus;
   }
   invalidate(): void {
@@ -82,6 +94,33 @@ export class GoSelector implements Component, Focusable {
     }, "置顶顺序已保存");
   }
 
+  private openDelete(): void {
+    const session = this.vm.activePane === "sessions" ? this.vm.session : undefined;
+    const project = this.vm.activePane === "projects" ? this.vm.project : undefined;
+    if (!session && !project) {
+      this.message = this.vm.activePane === "projects" ? "虚拟分组不能删除，请选择具体项目" : "请先选择具体会话";
+      return;
+    }
+    this.confirmation = session
+      ? { kind: "session", key: session.key, name: session.name, cwd: session.cwd ?? "", count: 1, yes: false }
+      : { kind: "project", key: project!.id, name: project!.name, cwd: project!.cwd,
+        count: project!.sessionKeys.length, yes: false };
+  }
+  private confirmDelete(): void {
+    const confirmation = this.confirmation!;
+    if (!confirmation.yes) { this.confirmation = undefined; return; }
+    void this.run(async () => {
+      this.vm.catalog = confirmation.kind === "session"
+        ? await this.callbacks.deleteSession(confirmation.key)
+        : confirmation.kind === "project"
+          ? await this.callbacks.deleteProject(confirmation.key)
+          : await this.callbacks.deleteFolder(confirmation.cwd);
+      this.vm.refresh();
+      this.confirmation = confirmation.kind === "project"
+        ? { ...confirmation, kind: "folder", yes: false } : undefined;
+    }, confirmation.kind === "project" ? "项目及其会话已删除；文件夹尚未删除" : "已删除");
+  }
+
   private openDirectory(): void {
     const input = new Input({ prompt: "目录 › " });
     input.setValue(this.cwd + (this.cwd.endsWith(sep) ? "" : sep));
@@ -109,6 +148,12 @@ export class GoSelector implements Component, Focusable {
   handleInput(data: string): void {
     if (this.busy || this.disposed) return;
     this.message = "";
+    if (this.confirmation) {
+      if (this.is(data, "tui.select.cancel", Key.escape)) this.confirmation = undefined;
+      else if (matchesKey(data, Key.tab)) this.confirmation.yes = !this.confirmation.yes;
+      else if (matchesKey(data, Key.enter)) this.confirmDelete();
+      this.changed(); return;
+    }
     if (this.form) {
       if (this.is(data, "tui.select.cancel", Key.escape)) this.closeForm();
       else if (this.is(data, "tui.select.confirm", Key.enter)) this.confirmForm();
@@ -131,6 +176,7 @@ export class GoSelector implements Component, Focusable {
     else if (this.is(data, "tui.select.down", Key.down)) this.vm.move(1);
     else if (matchesKey(data, Key.pageUp)) this.vm.move(-this.pageHeight);
     else if (matchesKey(data, Key.pageDown)) this.vm.move(this.pageHeight);
+    else if (matchesKey(data, Key.ctrl("d"))) this.openDelete();
     else if (matchesKey(data, Key.ctrl("y"))) {
       const sessionProject = this.vm.activePane === "sessions" && this.vm.session
         ? this.vm.catalog.projects.get(this.vm.session.projectId) : undefined;
@@ -179,6 +225,21 @@ export class GoSelector implements Component, Focusable {
     const frame = (text: string) => `${fg("│")} ${cell(text, inner)} ${fg("│")}`;
     const border = (left: string, right: string) => fg(left + "─".repeat(width - 2) + right);
     const lines = [border("╭", "╮")];
+    if (this.confirmation) {
+      const confirmation = this.confirmation;
+      const title = confirmation.kind === "session" ? "确认删除会话？"
+        : confirmation.kind === "project" ? `确认删除项目及其全部 ${confirmation.count} 个会话？` : "是否同时永久删除项目文件夹及其全部内容？";
+      lines.push(frame(this.theme.bold(title)));
+      lines.push(frame(safeText(confirmation.name)));
+      lines.push(frame(safeText(confirmation.kind === "session" ? confirmation.key : confirmation.cwd)));
+      lines.push(frame(this.theme.fg("warning", confirmation.kind === "folder"
+        ? "危险：包括子目录及非会话文件，删除后不可恢复！"
+        : confirmation.kind === "project" ? "删除后不可恢复。文件夹在下一步单独确认。" : "仅删除此会话文件，删除后不可恢复。")));
+      lines.push(frame(confirmation.yes ? "  否    [是，删除]" : "[否]    是，删除"));
+      lines.push(frame(this.theme.fg("dim", "Tab 切换 · Enter 确认 · Esc 取消")));
+      lines.push(frame(this.theme.fg("warning", this.message)), border("╰", "╯"));
+      return lines;
+    }
     if (this.form) {
       lines.push(frame(this.theme.bold(this.form.kind === "rename" ? "重命名项目（留空恢复默认名称）" : "选择目录（不会创建不存在的文件夹）")));
       lines.push(frame(this.form.input.render(inner)[0]));
@@ -203,7 +264,8 @@ export class GoSelector implements Component, Focusable {
       ? (this.vm.session ? "Enter 恢复会话" : "")
       : this.vm.project || this.vm.selectedProject.kind === "all" ? "Enter 新建会话"
         : (this.vm.selectedProject.kind === "pinned-sessions" || this.vm.selectedProject.kind === "temporary-sessions") && this.vm.canFocusSessions ? "Enter 选择会话" : "";
-    const hints = [this.vm.canFocusSessions ? "Tab 切换" : "", "↑↓ 选择", enterHint, "Esc 取消"];
+    const deleteHint = (this.vm.activePane === "sessions" ? this.vm.session : this.vm.project) ? "Ctrl+D 删除" : "";
+    const hints = [this.vm.canFocusSessions ? "Tab 切换" : "", "↑↓ 选择", enterHint, deleteHint, "Esc 取消"];
     lines.push(frame(this.theme.fg("dim", hints.filter(Boolean).join(" · "))));
     lines.push(frame(this.theme.fg("dim", "Ctrl+P pin · Alt+↑↓ 移动置顶 · Ctrl+R 重命名 · Ctrl+Y 复制路径")));
     lines.push(pair(

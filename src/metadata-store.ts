@@ -99,6 +99,12 @@ export class MetadataStore {
   patchSession(key: string, patch: Partial<SessionMeta>): Promise<Metadata> {
     return this.update(s => { s.sessions[key] = { ...s.sessions[key], ...patch }; });
   }
+  removeEntries(sessionKeys: readonly string[], projectId?: string): Promise<Metadata> {
+    return this.update(state => {
+      for (const key of sessionKeys) delete state.sessions[key];
+      if (projectId) delete state.projects[projectId];
+    });
+  }
   movePinned(kind: "project" | "session", key: string, neighbor: string, fallbackOrder: string[]): Promise<Metadata> {
     return this.update(state => {
       const entries: Record<string, ProjectMeta | SessionMeta> = { ...(kind === "project" ? state.projects : state.sessions) };
