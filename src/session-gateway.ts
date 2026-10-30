@@ -4,6 +4,7 @@ import { assertDirectory, normalizePath } from "./path-utils.ts";
 import { copyProjectPath } from "./clipboard.ts";
 import type { MetadataStore } from "./metadata-store.ts";
 import type { GoAction } from "./types.ts";
+import { cleanTemporary } from "./temp-cleanup.ts";
 
 /** Materialize Pi's own public snapshot, without fabricated user messages or private persistence APIs. */
 export async function createSessionFile(cwd: string, sessionDir?: string): Promise<{ path: string; snapshot: string }> {
@@ -27,6 +28,7 @@ async function discardUnused(seed: { path: string; snapshot: string }): Promise<
 
 export async function executeAction(ctx: ExtensionCommandContext, action: GoAction, store: MetadataStore,
   copyPath: (cwd: string) => Promise<void> = copyProjectPath): Promise<void> {
+  if (action.kind === "clean-temporary") { await cleanTemporary(ctx, store); return; }
   const remember = async (fresh: ExtensionCommandContext) => {
     try {
       const path = fresh.sessionManager.getSessionFile();

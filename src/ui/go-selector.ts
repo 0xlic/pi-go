@@ -176,6 +176,9 @@ export class GoSelector implements Component, Focusable {
     else if (this.is(data, "tui.select.down", Key.down)) this.vm.move(1);
     else if (matchesKey(data, Key.pageUp)) this.vm.move(-this.pageHeight);
     else if (matchesKey(data, Key.pageDown)) this.vm.move(this.pageHeight);
+    else if (matchesKey(data, Key.ctrl("k")) && this.vm.selectedProject.kind === "temporary-sessions") {
+      this.done({ kind: "clean-temporary" }); return;
+    }
     else if (matchesKey(data, Key.ctrl("d"))) this.openDelete();
     else if (matchesKey(data, Key.ctrl("y"))) {
       const sessionProject = this.vm.activePane === "sessions" && this.vm.session
@@ -269,7 +272,8 @@ export class GoSelector implements Component, Focusable {
       : this.vm.project || this.vm.selectedProject.kind === "all" ? "Enter 新建会话"
         : (this.vm.selectedProject.kind === "pinned-sessions" || this.vm.selectedProject.kind === "temporary-sessions") && this.vm.canFocusSessions ? "Enter 选择会话" : "";
     const deleteHint = (this.vm.activePane === "sessions" ? this.vm.session : this.vm.project) ? "Ctrl+D 删除" : "";
-    const hints = [this.vm.canFocusSessions ? "Tab 切换" : "", "↑↓ 选择", enterHint, deleteHint, "Esc 取消"];
+    const hints = [this.vm.canFocusSessions ? "Tab 切换" : "", "↑↓ 选择", enterHint, deleteHint,
+      this.vm.selectedProject.kind === "temporary-sessions" ? "Ctrl+K 清理临时会话" : "", "Esc 取消"];
     lines.push(frame(this.theme.fg("dim", hints.filter(Boolean).join(" · "))));
     lines.push(frame(this.theme.fg("dim", "Ctrl+P pin · Alt+↑↓ 移动置顶 · Ctrl+R 重命名 · Ctrl+Y 复制路径")));
     lines.push(pair(

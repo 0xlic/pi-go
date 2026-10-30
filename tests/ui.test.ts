@@ -33,6 +33,18 @@ function fixture() {
   return { selector, actions, copied, deleted, callbacks };
 }
 
+test("Ctrl+K opens cleanup only while the temporary group is selected", () => {
+  const { selector, actions } = fixture();
+  selector.handleInput("\x0b");
+  assert.deepEqual(actions, []);
+  selector.vm.catalog.temporarySessionsGroup = { name: "临时会话", searchFields: ["临时会话"] };
+  selector.vm.refresh();
+  selector.vm.selectProject({ kind: "temporary-sessions" });
+  assert.match(selector.render(120).join("\n"), /Ctrl\+K 清理临时会话/);
+  selector.handleInput("\x0b");
+  assert.deepEqual(actions, [{ kind: "clean-temporary" }]);
+});
+
 test("dual pane rendering fits terminal columns, including ANSI, Chinese and cursor marker", () => {
   const { selector } = fixture();
   for (const width of [54, 80, 120, 200]) {

@@ -1,4 +1,5 @@
 import { stat } from "node:fs/promises";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { homedir } from "node:os";
 import { posix, resolve, win32 } from "node:path";
 
@@ -20,7 +21,8 @@ export function isPathWithin(path: string, directory: string, platform = process
 }
 
 export function isTemporaryPath(path: string): boolean {
-  return isPathWithin(normalizePath(path), normalizePath("~/.pi/agent/pi-temp-sessions"));
+  return isPathWithin(normalizePath(path), resolve(getAgentDir(), "pi-temp-sessions"))
+    || isPathWithin(normalizePath(path), normalizePath("~/.pi/agent/pi-temp-sessions"));
 }
 
 // Never allow transcript names or filesystem paths to inject terminal controls.
