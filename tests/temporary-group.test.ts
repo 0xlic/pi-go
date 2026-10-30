@@ -6,7 +6,7 @@ import { emptyMetadata } from "../src/metadata-store.ts";
 import { isPathWithin, isTemporaryPath, normalizePath } from "../src/path-utils.ts";
 import { ViewModel } from "../src/ui/view-model.ts";
 
-const root = normalizePath("~/.pi/agent/pi-temp-sessions");
+const root = normalizePath("~/.pi/agent/temp-sessions");
 function info(path: string, cwd: string): SessionInfo {
   return { path, cwd, id: path, name: "临时任务", created: new Date(1), modified: new Date(2),
     messageCount: 0, firstMessage: "", allMessagesText: "" };

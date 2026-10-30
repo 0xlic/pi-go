@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { createDirectory, deleteWorkspace, parseTimestamp, planCleanup, temporaryRoot } from "../src/temp-workspaces.ts";
@@ -76,8 +76,13 @@ test("cleanup protects active workspaces, rejects symlink swaps and deletes exte
     await rm(root, { recursive: true, force: true });
   });
   const workspace = await createDirectory();
-  assert.ok(parseTimestamp(workspace.split("/").at(-1)!));
+  assert.ok(parseTimestamp(basename(workspace)));
   assert.equal(parseTimestamp("2026-02-31_00-00-00"), undefined);
+  assert.equal(basename(temporaryRoot()), "temp-sessions");
+  const legacy = join(root, "pi-temp-sessions", "2024-02-01_00-00-00");
+  await mkdir(legacy, { recursive: true });
+  const legacySeed = await createSessionFile(legacy);
+  const legacyOrphan = await createSessionFile(join(root, "pi-temp-sessions", "2024-03-01_00-00-00"));
   const seed = await createSessionFile(workspace);
   // Flat JSONL at the sessions root is not returned by Pi's global scan.
   const flatPath = join(root, "sessions", "flat.jsonl");
@@ -94,6 +99,9 @@ test("cleanup protects active workspaces, rejects symlink swaps and deletes exte
   } as unknown as ExtensionCommandContext;
   await cleanTemporary(ctx, store);
   await assert.rejects(readFile(seed.path));
+  await assert.rejects(readFile(legacySeed.path));
+  await assert.rejects(readdir(legacy));
+  await assert.rejects(readFile(legacyOrphan.path));
   await assert.rejects(readFile(flatPath));
   assert.equal(await readFile(retainedFile, "utf8"), "unrelated file");
   assert.ok(await readdir(join(root, "sessions")));
@@ -118,7 +126,7 @@ test("cleanup protects active workspaces, rejects symlink swaps and deletes exte
   const plan = await planCleanup(temporaryRoot(), null, []);
   await rm(path, { recursive: true });
   const outside = join(root, "outside"); await mkdir(outside); await writeFile(join(outside, "keep"), "safe");
-  await symlink(outside, path);
+  await symlink(outside, path, process.platform === "win32" ? "junction" : "dir");
   await assert.rejects(deleteWorkspace(plan.root, plan.directories[0]));
   assert.equal(await readFile(join(outside, "keep"), "utf8"), "safe");
 });

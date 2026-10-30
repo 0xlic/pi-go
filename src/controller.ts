@@ -4,7 +4,7 @@ import { copyProjectPath } from "./clipboard.ts";
 import { buildCatalog, projectEntries } from "./catalog.ts";
 import { inspectCatalogAvailability } from "./catalog-availability.ts";
 import { MetadataStore } from "./metadata-store.ts";
-import { normalizePath } from "./path-utils.ts";
+import { normalizePath, samePath } from "./path-utils.ts";
 import { executeAction } from "./session-gateway.ts";
 import { compareEntries } from "./sort.ts";
 import { listSessions } from "./session-repository.ts";
@@ -77,7 +77,7 @@ export async function openGo(ctx: ExtensionCommandContext, store: MetadataStore,
         if (!catalog().projects.has(id)) throw new Error("虚拟分组或不存在的项目不能删除");
         // Rescan all stores, not just the filtered or pinned sessions visible in the UI.
         await reload();
-        const keys = infos.filter(info => info.cwd && normalizePath(info.cwd) === id).map(info => normalizePath(info.path));
+        const keys = infos.filter(info => info.cwd && samePath(info.cwd, id)).map(info => normalizePath(info.path));
         try {
           await deleteSessionFiles(keys, currentFile);
           metadata = await store.removeEntries(keys, id);

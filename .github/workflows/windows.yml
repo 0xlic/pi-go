@@ -1,0 +1,20 @@
+name: Windows compatibility
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      # Focused native filesystem/path suite; other UI fixtures use POSIX mock paths.
+      - run: npx tsx --test tests/path-utils.test.ts tests/clipboard.test.ts tests/deletion.test.ts tests/temp-session.test.ts tests/metadata-store.test.ts

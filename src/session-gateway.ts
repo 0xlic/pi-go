@@ -1,6 +1,6 @@
 import { open, readFile, rmdir, stat, unlink } from "node:fs/promises";
 import { parseSessionEntries, SessionManager, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { assertDirectory, normalizePath } from "./path-utils.ts";
+import { assertDirectory, normalizePath, samePath } from "./path-utils.ts";
 import { copyProjectPath } from "./clipboard.ts";
 import type { MetadataStore } from "./metadata-store.ts";
 import type { GoAction } from "./types.ts";
@@ -65,7 +65,7 @@ export async function executeAction(ctx: ExtensionCommandContext, action: GoActi
   if (action.kind === "restore") {
     const path = normalizePath(action.path);
     const current = ctx.sessionManager.getSessionFile();
-    if (current && normalizePath(current) === path) { await remember(ctx); return; }
+    if (current && samePath(current, path)) { await remember(ctx); return; }
     const fileInfo = await stat(path);
     if (!fileInfo.isFile() || fileInfo.size === 0) throw new Error("目标 session 为空或不是文件");
     const header = parseSessionEntries(await readFile(path, "utf8")).find(entry => entry.type === "session");
@@ -77,7 +77,7 @@ export async function executeAction(ctx: ExtensionCommandContext, action: GoActi
   }
   const cwd = normalizePath(action.cwd);
   await assertDirectory(cwd);
-  if (cwd === normalizePath(ctx.cwd)) {
+  if (samePath(cwd, ctx.cwd)) {
     await ctx.newSession({ withSession: remember });
     return;
   }

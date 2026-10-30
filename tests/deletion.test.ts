@@ -39,7 +39,7 @@ test("folder deletion is recursive but rejects protected paths, home, root and s
   await assert.rejects(deleteProjectFolder(homedir(), []), /主目录/);
   await assert.rejects(deleteProjectFolder(parse(root).root, []), /根目录/);
   const link = join(root, "link");
-  await symlink(project, link);
+  await symlink(project, link, process.platform === "win32" ? "junction" : "dir");
   await assert.rejects(deleteProjectFolder(link, []), /符号链接/);
   await access(join(project, "child", "source.ts"));
   await deleteProjectFolder(project, [join(root, "elsewhere")]);

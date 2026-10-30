@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { posix, resolve, win32 } from "node:path";
 
 export function normalizePath(path: string, base = process.cwd()): string {
-  const expanded = path === "~" ? homedir() : path.startsWith("~/") ? `${homedir()}/${path.slice(2)}` : path;
+  const expanded = path === "~" ? homedir() : /^~[\\/]/.test(path) ? `${homedir()}/${path.slice(2)}` : path;
   return resolve(base, expanded);
 }
 
@@ -20,9 +20,18 @@ export function isPathWithin(path: string, directory: string, platform = process
   return normalized === root || normalized.startsWith(root.endsWith(paths.sep) ? root : root + paths.sep);
 }
 
+/** Compare Windows drive letters, separators and casing without changing stored paths. */
+export function samePath(left: string, right: string, platform = process.platform): boolean {
+  return isPathWithin(left, right, platform) && isPathWithin(right, left, platform);
+}
+
+export function temporaryRoots(): string[] {
+  return ["temp-sessions", "pi-temp-sessions"].map(name => resolve(getAgentDir(), name));
+}
+
 export function isTemporaryPath(path: string): boolean {
-  return isPathWithin(normalizePath(path), resolve(getAgentDir(), "pi-temp-sessions"))
-    || isPathWithin(normalizePath(path), normalizePath("~/.pi/agent/pi-temp-sessions"));
+  const roots = [...temporaryRoots(), ...["temp-sessions", "pi-temp-sessions"].map(name => normalizePath(`~/.pi/agent/${name}`))];
+  return roots.some(root => isPathWithin(normalizePath(path), root));
 }
 
 // Never allow transcript names or filesystem paths to inject terminal controls.

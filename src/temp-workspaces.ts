@@ -2,9 +2,9 @@ import { constants } from "node:fs";
 import { access, lstat, mkdir, readdir, realpath, rm, stat } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { isPathWithin } from "./path-utils.ts";
+import { isPathWithin, samePath } from "./path-utils.ts";
 
-export const temporaryRoot = () => join(getAgentDir(), "pi-temp-sessions");
+export const temporaryRoot = () => join(getAgentDir(), "temp-sessions");
 const pad = (n: number) => String(n).padStart(2, "0");
 export function timestamp(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`;
@@ -69,7 +69,7 @@ export async function planCleanup(root: string, days: number | null, protectedPa
   return { root: resolved, directories, skippedActive };
 }
 export async function deleteWorkspace(root: string, directory: Workspace): Promise<void> {
-  if (dirname(directory.path) !== root || !parseTimestamp(basename(directory.path)) || await realpath(root) !== root) {
+  if (!samePath(dirname(directory.path), root) || !parseTimestamp(basename(directory.path)) || !samePath(await realpath(root), root)) {
     throw new Error("清理根目录或工作区已发生变化");
   }
   const info = await lstat(directory.path);
