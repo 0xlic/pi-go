@@ -1,6 +1,6 @@
-import { lstat } from "node:fs/promises";
-import { basename, join, relative } from "node:path";
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { lstat, rmdir } from "node:fs/promises";
+import { basename, dirname, join, relative } from "node:path";
+import { getAgentDir, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { deleteSessionFiles } from "./deletion.ts";
 import type { MetadataStore } from "./metadata-store.ts";
 import { isPathWithin } from "./path-utils.ts";
@@ -46,6 +46,7 @@ export async function cleanTemporary(ctx: ExtensionCommandContext, store: Metada
     "无法检测其他 Pi 进程是否正在使用这些工作区，请先关闭相关会话。",
   ].filter(Boolean).join("\n"));
   if (!confirmed) return;
+  const sessionRoot = await canonical(join(getAgentDir(), "sessions"));
   let deleted = 0, histories = 0;
   const failures: string[] = [];
   for (const [path, directory] of targets) {
@@ -54,6 +55,15 @@ export async function cleanTemporary(ctx: ExtensionCommandContext, store: Metada
       // Protect the active JSONL even if its header or storage location is unusual.
       await deleteSessionFiles(keys, current);
       await store.removeEntries(keys);
+      // Remove only empty default project stores, never the sessions root or custom stores.
+      for (const parent of new Set(keys.map(key => dirname(key)))) {
+        const resolved = await canonical(parent);
+        if (dirname(resolved) !== sessionRoot) continue;
+        try { await rmdir(parent); }
+        catch (error) {
+          if (!["ENOENT", "ENOTEMPTY", "EEXIST"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+        }
+      }
       if (directory) { await deleteWorkspace(plan.root, directory); deleted++; }
       histories += keys.length;
     } catch (error) { failures.push(`${path}: ${String(error)}`); }

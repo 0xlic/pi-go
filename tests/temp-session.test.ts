@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { createDirectory, deleteWorkspace, parseTimestamp, planCleanup, temporaryRoot } from "../src/temp-workspaces.ts";
@@ -82,6 +82,8 @@ test("cleanup protects active workspaces, rejects symlink swaps and deletes exte
   // Flat JSONL at the sessions root is not returned by Pi's global scan.
   const flatPath = join(root, "sessions", "flat.jsonl");
   await writeFile(flatPath, await readFile(seed.path));
+  const retainedFile = join(dirname(seed.path), "keep.txt");
+  await writeFile(retainedFile, "unrelated file");
   const activePlan = await planCleanup(temporaryRoot(), null, [workspace]);
   assert.equal(activePlan.skippedActive, 1);
   const store = new MetadataStore(join(root, "state.json"));
@@ -93,6 +95,8 @@ test("cleanup protects active workspaces, rejects symlink swaps and deletes exte
   await cleanTemporary(ctx, store);
   await assert.rejects(readFile(seed.path));
   await assert.rejects(readFile(flatPath));
+  assert.equal(await readFile(retainedFile, "utf8"), "unrelated file");
+  assert.ok(await readdir(join(root, "sessions")));
   await assert.rejects(readdir(workspace));
   assert.equal((await store.read()).sessions[seed.path], undefined);
   // A previous cleanup may already have removed the workspace but left JSONL.
@@ -101,6 +105,7 @@ test("cleanup protects active workspaces, rejects symlink swaps and deletes exte
   await store.visit(orphan, orphanSeed.path);
   await cleanTemporary(ctx, store);
   await assert.rejects(readFile(orphanSeed.path));
+  await assert.rejects(readdir(dirname(orphanSeed.path)), { code: "ENOENT" });
   assert.equal((await store.read()).sessions[orphanSeed.path], undefined);
   // Active history is protected even when its workspace is absent.
   const activeSeed = await createSessionFile(orphan);
