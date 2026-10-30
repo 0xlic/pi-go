@@ -10,7 +10,7 @@ export function registerTemp(pi: ExtensionAPI): void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const inputs: InputEvent[] = [];
   pi.registerCommand("temp", {
-    description: "创建临时工作区并切换到新会话（清理请使用 /go）",
+    description: "Create a temporary workspace and start a new session",
     handler: async (args, ctx) => {
       if (args.trim()) { ctx.ui.notify("用法：/temp；清理请在 /go 中选中临时会话后按 Ctrl+K", "error"); return; }
       if (busy) return;

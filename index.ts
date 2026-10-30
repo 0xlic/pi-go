@@ -15,7 +15,7 @@ export default function piGo(pi: ExtensionAPI): void {
   const guard = globals[guardKey] ??= { active: false, startupConsumed: false };
   const store = new MetadataStore(join(getAgentDir(), "pi-go", "state.json"));
   pi.registerFlag("g", { description: "Open the project/session switcher on startup", type: "boolean", default: false });
-  pi.registerCommand("go", { description: "切换项目和会话，创建或恢复 session", handler: async (args, ctx) => {
+  pi.registerCommand("go", { description: "Open the project and session panel to create, resume, or clean up sessions", handler: async (args, ctx) => {
     if (args.startsWith(STARTUP_ARGUMENT)) {
       const task = guard.startupTask;
       if (!task || args !== `${STARTUP_ARGUMENT}${task.id}` || task.controller.signal.aborted || guard.startupConsumed) return;
