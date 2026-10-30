@@ -47,6 +47,7 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
         return catalog();
       },
     }, () => { throw new Error("Reordering must not close the picker"); });
+  selector.vm.selectProject({ kind: "project", id: "/work/a" });
   const settled = async () => {
     const deadline = Date.now() + 2000;
     while (selector.render(100).join("\n").includes("保存 / 加载中") && Date.now() < deadline) await sleep(5);
@@ -83,8 +84,8 @@ test("project session scope swaps visible pins without moving the hidden global 
   const state = await f.store.read();
   assert.equal(state.sessions["/s/b"].pinOrder, 1);
   assert.equal(state.sessions["/s/a"].lastUsedAt, 30);
-  f.selector.vm.selectProject({ kind: "all" });
-  assert.deepEqual(sessions(f.selector), ["/s/c", "/s/b", "/s/a", "/s/ordinary"]);
+  f.selector.vm.selectProject({ kind: "pinned-sessions" });
+  assert.deepEqual(sessions(f.selector), ["/s/c", "/s/b", "/s/a"]);
 });
 
 test("filtered project pins swap only visible neighbors; boundaries and ordinary rows do not write", async t => {
@@ -127,7 +128,7 @@ test("virtual pinned-session group moves among pinned projects without a fake cw
   f.selector.vm.selectProject({ kind: "pinned-sessions" });
   assert.match(f.selector.render(100).join("\n"), /【置顶会话】/);
   const initial = f.selector.vm.projectRows.findIndex(row => row.kind === "pinned-sessions");
-  assert.ok(initial > 0);
+  assert.ok(initial >= 0);
   f.selector.handleInput("\x1b[1;3B"); await f.settled();
   assert.equal(f.selector.vm.projectRows.findIndex(row => row.kind === "pinned-sessions"), initial + 1);
   assert.equal(f.selector.vm.selectedProject.kind, "pinned-sessions");
@@ -163,7 +164,7 @@ test("virtual group vanishes immediately after its last actual session is unpinn
   }
   assert.equal(f.selector.vm.catalog.pinnedSessionsGroup, undefined);
   assert.ok(!f.selector.vm.projectRows.some(row => row.kind === "pinned-sessions"));
-  assert.equal(f.selector.vm.selectedProject.kind, "all");
+  assert.equal(f.selector.vm.selectedProject.kind, "temporary-sessions");
 });
 
 test("pinned sessions remain in original project and virtual group, with shared reorderable order", async t => {

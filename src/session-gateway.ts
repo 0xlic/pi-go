@@ -1,10 +1,11 @@
-import { open, readFile, stat, unlink } from "node:fs/promises";
+import { open, readFile, rmdir, stat, unlink } from "node:fs/promises";
 import { parseSessionEntries, SessionManager, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { assertDirectory, normalizePath } from "./path-utils.ts";
 import { copyProjectPath } from "./clipboard.ts";
 import type { MetadataStore } from "./metadata-store.ts";
 import type { GoAction } from "./types.ts";
 import { cleanTemporary } from "./temp-cleanup.ts";
+import { createDirectory } from "./temp-workspaces.ts";
 
 /** Materialize Pi's own public snapshot, without fabricated user messages or private persistence APIs. */
 export async function createSessionFile(cwd: string, sessionDir?: string): Promise<{ path: string; snapshot: string }> {
@@ -42,6 +43,25 @@ export async function executeAction(ctx: ExtensionCommandContext, action: GoActi
       fresh.ui.notify(`已切换，但项目目录复制失败：${error instanceof Error ? error.message : String(error)}`, "warning");
     }
   };
+  if (action.kind === "create-temporary") {
+    const directory = await createDirectory();
+    let seed: Awaited<ReturnType<typeof createSessionFile>> | undefined;
+    let accepted = false;
+    try {
+      seed = await createSessionFile(directory);
+      const result = await ctx.switchSession(seed.path, { withSession: async fresh => {
+        accepted = true;
+        await remember(fresh);
+      } });
+      if (!result.cancelled) accepted = true;
+    } finally {
+      if (!accepted) {
+        if (seed) await discardUnused(seed);
+        await rmdir(directory).catch(() => undefined);
+      }
+    }
+    return;
+  }
   if (action.kind === "restore") {
     const path = normalizePath(action.path);
     const current = ctx.sessionManager.getSessionFile();

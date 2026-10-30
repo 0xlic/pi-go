@@ -78,8 +78,3 @@ export async function deleteWorkspace(root: string, directory: Workspace): Promi
   }
   await rm(directory.path, { recursive: true });
 }
-export function startupConflict(argv: string[]): boolean {
-  const end = argv.indexOf("--");
-  return (end < 0 ? argv : argv.slice(0, end)).some(arg =>
-    ["--continue", "-c", "--resume", "-r", "--session", "--session-id", "--fork", "--no-session"].some(flag => arg === flag || arg.startsWith(`${flag}=`)));
-}

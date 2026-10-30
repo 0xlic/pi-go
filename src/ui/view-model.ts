@@ -20,9 +20,7 @@ export class ViewModel {
   sessionScroll = 0;
 
   constructor(public catalog: Catalog, currentCwd: string) {
-    this.selectedProject = catalog.projects.has(currentCwd) ? { kind: "project", id: currentCwd }
-      : catalog.temporarySessionsGroup && [...catalog.sessions.values()].some(s => s.temporary && s.projectId === currentCwd)
-        ? { kind: "temporary-sessions" } : { kind: "all" };
+    this.selectedProject = { kind: "temporary-sessions" };
     this.refresh();
   }
   get project(): Project | undefined {
@@ -64,11 +62,10 @@ export class ViewModel {
       .sort((a, b) => compareEntries(a, b) || a.id.localeCompare(b.id));
     this.projectRows = projects.map(p => p.id === PINNED_SESSIONS_GROUP_ID
       ? { kind: "pinned-sessions" as const } : { kind: "project" as const, id: p.id });
-    const temporary = this.catalog.temporarySessionsGroup;
-    if (temporary && matches(this.projectQuery, temporary.searchFields)) {
+    const temporary = this.catalog.temporarySessionsGroup ?? { name: "临时会话", searchFields: ["临时会话"] };
+    if (matches(this.projectQuery, temporary.searchFields)) {
       this.projectRows.unshift({ kind: "temporary-sessions" });
     }
-    if (!this.projectQuery.trim()) this.projectRows.unshift({ kind: "all" });
     if (!this.projectRows.some(row => projectKey(row) === projectKey(this.selectedProject))) {
       const next: ProjectSelection = this.projectRows[0] ?? { kind: "none" };
       if (projectKey(next) !== projectKey(this.selectedProject)) {

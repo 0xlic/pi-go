@@ -55,4 +55,4 @@ export interface Catalog {
 }
 export type ProjectRow = { kind: "all" } | { kind: "temporary-sessions" } | { kind: "pinned-sessions" } | { kind: "project"; id: string };
 export type SessionRow = { kind: "session"; key: string };
-export type GoAction = { kind: "restore"; path: string } | { kind: "create"; cwd: string } | { kind: "clean-temporary" };
+export type GoAction = { kind: "restore"; path: string } | { kind: "create"; cwd: string } | { kind: "clean-temporary" } | { kind: "create-temporary" };

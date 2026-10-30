@@ -118,7 +118,7 @@ test("loads actual extension file: --g displays picker once and never sends a mo
         component = c; components.push(c);
         if ("focused" in c) (c as Component & Focusable).focused = true;
         const screen = c.render(100).join("\n");
-        if (screen.includes("所有项目")) { screens.push(screen); c.handleInput?.("\x1b"); }
+        if (screen.includes("项目 ›")) { screens.push(screen); c.handleInput?.("\x1b"); }
       }, reject);
     }),
   } as unknown as ExtensionUIContext;
@@ -131,7 +131,7 @@ test("loads actual extension file: --g displays picker once and never sends a mo
   while (screens.length === 0 && errors.length === 0 && Date.now() < deadline) await sleep(10);
   assert.deepEqual(errors, []);
   assert.equal(screens.length, 1);
-  assert.match(screens[0], /Enter 新建会话/);
+  assert.match(screens[0], /Enter 新建临时会话/);
   assert.doesNotMatch(screens[0], /＋ 新建会话/);
   assert.equal(session.messages.length, 0);
   await sleep(30);

@@ -23,7 +23,7 @@ test("group appears only when actual sessions are pinned, not stale metadata", (
   meta.sessions["/s/b"].pinned = false;
   vm.catalog = buildCatalog(infos, meta, "/work/a"); vm.refresh();
   assert.equal(vm.catalog.pinnedSessionsGroup, undefined);
-  assert.equal(vm.selectedProject.kind, "all");
+  assert.equal(vm.selectedProject.kind, "temporary-sessions");
 });
 
 test("virtual group is searchable by its name only and right side filters pinned titles globally", () => {

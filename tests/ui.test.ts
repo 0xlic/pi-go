@@ -10,7 +10,7 @@ import { GoSelector, type SelectorCallbacks } from "../src/ui/go-selector.ts";
 
 const theme = { fg: (color: string, s: string) => `\x1b[${color === "error" ? 31 : 36}m${s}\x1b[39m`, bg: (_: string, s: string) => `\x1b[44m${s}\x1b[49m`, bold: (s: string) => s } as Theme;
 const kb = { matches: () => false } as unknown as KeybindingsManager;
-function fixture() {
+function fixture(selectProject = true) {
   const meta = emptyMetadata();
   const catalog = () => buildCatalog([{ path: "/s/a", id: "abc", cwd: "/work/a", name: "中文会话 🚀 " + "很长标题".repeat(30),
     modified: new Date(1), created: new Date(1), messageCount: 0, firstMessage: "", allMessagesText: "" }], meta, "/work/a");
@@ -30,8 +30,17 @@ function fixture() {
   const selector = new GoSelector({ requestRender: () => {}, terminal: { rows: 24 } } as Pick<TUI, "requestRender" | "terminal">,
     theme, kb, catalog(), "/work/a", callbacks, action => actions.push(action));
   selector.focused = true;
+  if (selectProject) selector.vm.selectProject({ kind: "project", id: "/work/a" });
   return { selector, actions, copied, deleted, callbacks };
 }
+
+test("go defaults to temporary creation even without history", () => {
+  const { selector, actions } = fixture(false);
+  assert.equal(selector.vm.selectedProject.kind, "temporary-sessions");
+  assert.match(selector.render(100).join("\n"), /Enter 新建临时会话/);
+  selector.handleInput("\r");
+  assert.deepEqual(actions, [{ kind: "create-temporary" }]);
+});
 
 test("Ctrl+K opens cleanup only while the temporary group is selected", () => {
   const { selector, actions } = fixture();
@@ -96,7 +105,10 @@ test("Tab preserves queries, project change clears session input; Enter restores
   selector.handleInput("\t"); selector.handleInput("中文");
   assert.equal(selector.vm.sessionQuery, "中文");
   selector.handleInput("\x1b[Z"); assert.equal(selector.vm.sessionQuery, "中文");
-  selector.handleInput("\x1b[A"); assert.equal(selector.vm.sessionQuery, "");
+  selector.vm.setQuery("missing-project");
+  assert.equal(selector.vm.sessionQuery, "");
+  selector.vm.setQuery("");
+  selector.vm.selectProject({ kind: "project", id: "/work/a" });
   selector.handleInput("\t"); selector.handleInput("\r");
   assert.deepEqual(actions, [{ kind: "restore", path: "/s/a" }]);
 });
@@ -158,13 +170,9 @@ test("Enter on empty session results does not create; left pane still creates", 
   assert.deepEqual(actions, [{ kind: "create", cwd: "/work/a" }]);
 });
 
-test("Enter on all projects opens directory form; pinned group enters sessions", () => {
+test("all-project entry is absent; pinned group enters sessions", () => {
   const { selector, actions } = fixture();
-  selector.vm.selectProject({ kind: "all" });
-  selector.handleInput("\r");
-  assert.match(selector.render(100).join("\n"), /选择目录/);
-  assert.deepEqual(actions, []);
-  selector.handleInput("\x1b");
+  assert.ok(selector.vm.projectRows.every(row => row.kind !== "all"));
   selector.vm.catalog.sessions.get("/s/a")!.pinned = true;
   // The group is normally rebuilt by the pin callback.
   selector.vm.catalog.pinnedSessionsGroup = { id: "pi-go:pinned-sessions", name: "【置顶会话】", pinned: true, lastUsedAt: 1, searchFields: [] };
@@ -194,12 +202,8 @@ test("Ctrl+Y copies project cwd without opening directory form or closing picker
   assert.doesNotMatch(selector.render(100).join("\n"), /选择目录/);
 });
 
-test("global session selection copies its project cwd, never session file path", async () => {
+test("session selection copies its project cwd, never session file path", async () => {
   const { selector, actions, copied } = fixture();
-  selector.vm.selectProject({ kind: "all" });
-  selector.handleInput("\x19"); await sleep(10);
-  assert.deepEqual(copied, []);
-  assert.match(selector.render(100).join("\n"), /请先选择具体项目或会话/);
   selector.handleInput("\t"); selector.handleInput("\x1b[B");
   selector.handleInput("\x19"); await sleep(10);
   assert.deepEqual(copied, ["/work/a"]);

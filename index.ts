@@ -5,7 +5,6 @@ import { openGo, type RuntimeGuard } from "./src/controller.ts";
 import { MetadataStore } from "./src/metadata-store.ts";
 import { registerStartup, STARTUP_ARGUMENT } from "./src/startup-adapter.ts";
 import { normalizePath } from "./src/path-utils.ts";
-import { registerTemp } from "./src/temp-session.ts";
 
 // A replacement or /reload creates a new extension instance; keep only process-level guards here.
 const guardKey = Symbol.for("pi-go.runtime-guard.v1");
@@ -32,6 +31,5 @@ export default function piGo(pi: ExtensionAPI): void {
     try { await store.visit(normalizePath(ctx.cwd), normalizePath(file)); }
     catch (error) { if (ctx.hasUI) ctx.ui.notify(`pi-go 访问记录未保存：${String(error)}`, "warning"); }
   });
-  registerTemp(pi);
   registerStartup(pi, guard);
 }

@@ -208,6 +208,7 @@ export class GoSelector implements Component, Focusable {
       if (this.vm.selectedProject.kind === "none") this.message = "没有匹配项目，请调整项目搜索";
       else if (this.vm.activePane === "projects") {
         if (this.vm.project) { this.done({ kind: "create", cwd: this.vm.project.cwd }); return; }
+        else if (this.vm.selectedProject.kind === "temporary-sessions") { this.done({ kind: "create-temporary" }); return; }
         else if (this.vm.selectedProject.kind === "all") this.openDirectory();
         else this.vm.togglePane();
       } else if (this.vm.session) { this.done({ kind: "restore", path: this.vm.session.key }); return; }
@@ -269,8 +270,9 @@ export class GoSelector implements Component, Focusable {
       search(this.sessionInput, "会话 › ", "会话名称", rightWidth, sessionsActive)));
     const enterHint = this.vm.activePane === "sessions"
       ? (this.vm.session ? "Enter 恢复会话" : "")
-      : this.vm.project || this.vm.selectedProject.kind === "all" ? "Enter 新建会话"
-        : (this.vm.selectedProject.kind === "pinned-sessions" || this.vm.selectedProject.kind === "temporary-sessions") && this.vm.canFocusSessions ? "Enter 选择会话" : "";
+      : this.vm.selectedProject.kind === "temporary-sessions" ? "Enter 新建临时会话"
+        : this.vm.project || this.vm.selectedProject.kind === "all" ? "Enter 新建会话"
+        : this.vm.selectedProject.kind === "pinned-sessions" && this.vm.canFocusSessions ? "Enter 选择会话" : "";
     const deleteHint = (this.vm.activePane === "sessions" ? this.vm.session : this.vm.project) ? "Ctrl+D 删除" : "";
     const hints = [this.vm.canFocusSessions ? "Tab 切换" : "", "↑↓ 选择", enterHint, deleteHint,
       this.vm.selectedProject.kind === "temporary-sessions" ? "Ctrl+K 清理临时会话" : "", "Esc 取消"];
@@ -294,7 +296,7 @@ export class GoSelector implements Component, Focusable {
       if (p) {
         const project = p.kind === "project" ? this.vm.catalog.projects.get(p.id)
           : p.kind === "pinned-sessions" ? this.vm.catalog.pinnedSessionsGroup
-            : p.kind === "temporary-sessions" ? { ...this.vm.catalog.temporarySessionsGroup!, pinned: false } : undefined;
+            : p.kind === "temporary-sessions" ? { name: "临时会话", ...this.vm.catalog.temporarySessionsGroup, pinned: false } : undefined;
         const selected = p.kind === "all" ? this.vm.selectedProject.kind === "all"
           : p.kind === "pinned-sessions" || p.kind === "temporary-sessions" ? this.vm.selectedProject.kind === p.kind : this.vm.project?.id === p.id;
         left = styleRow(`${selected ? "›" : " "} ${project?.pinned ? "★ " : "  "}${project?.name ?? "所有项目"}`,

@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { registerTemp } from "../src/temp-session.ts";
-import { createDirectory, deleteWorkspace, parseTimestamp, planCleanup, startupConflict, temporaryRoot } from "../src/temp-workspaces.ts";
+import { createDirectory, deleteWorkspace, parseTimestamp, planCleanup, temporaryRoot } from "../src/temp-workspaces.ts";
 import { cleanTemporary } from "../src/temp-cleanup.ts";
-import { createSessionFile } from "../src/session-gateway.ts";
+import { createSessionFile, executeAction } from "../src/session-gateway.ts";
 import { MetadataStore } from "../src/metadata-store.ts";
+import piGo from "../index.ts";
 
-test("temporary command exposes only /temp and writes JSONL in the default store", async t => {
+test("temporary action writes JSONL in the default store and cleans up cancellation", async t => {
   const root = await mkdtemp(join(tmpdir(), "go-temp-"));
   const previous = process.env.PI_CODING_AGENT_DIR;
   process.env.PI_CODING_AGENT_DIR = root;
@@ -18,9 +18,6 @@ test("temporary command exposes only /temp and writes JSONL in the default store
     if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous;
     await rm(root, { recursive: true, force: true });
   });
-  const commands = new Map<string, { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> }>();
-  registerTemp({ registerCommand: (name: string, command: { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> }) => commands.set(name, command), on: () => {} } as unknown as ExtensionAPI);
-  assert.deepEqual([...commands.keys()], ["temp"]);
   let targetFile = "", targetCwd = "";
   const ctx = {
     waitForIdle: async () => {}, ui: { notify: () => {} },
@@ -33,12 +30,41 @@ test("temporary command exposes only /temp and writes JSONL in the default store
       return { cancelled: true };
     },
   } as unknown as ExtensionCommandContext;
-  await commands.get("temp")!.handler("", ctx);
+  await executeAction(ctx, { kind: "create-temporary" }, new MetadataStore(join(root, "state.json")), async () => {});
   assert.ok(targetFile);
   await assert.rejects(readFile(targetFile));
   await assert.rejects(readdir(targetCwd));
-  assert.equal(startupConflict(["--session=x"]), true);
-  assert.equal(startupConflict(["--", "--resume"]), false);
+});
+
+test("only go is registered as a command", () => {
+  const commands: string[] = [];
+  piGo({ registerCommand: (name: string) => commands.push(name), registerFlag: () => {}, on: () => {} } as unknown as ExtensionAPI);
+  assert.deepEqual(commands, ["go"]);
+});
+
+test("temporary creation records a visit and preserves the accepted session", async t => {
+  const root = await mkdtemp(join(tmpdir(), "go-temp-success-"));
+  const previous = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = root;
+  t.after(async () => {
+    if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous;
+    await rm(root, { recursive: true, force: true });
+  });
+  const store = new MetadataStore(join(root, "state.json"));
+  let path = "", cwd = "", copied = "";
+  const ctx = {
+    switchSession: async (file: string, options: { withSession: (fresh: ExtensionCommandContext) => Promise<void> }) => {
+      path = file;
+      cwd = JSON.parse((await readFile(file, "utf8")).split("\n")[0]).cwd;
+      await options.withSession({ cwd, sessionManager: { getSessionFile: () => file }, ui: { notify: () => {} } } as unknown as ExtensionCommandContext);
+      return { cancelled: false };
+    },
+  } as unknown as ExtensionCommandContext;
+  await executeAction(ctx, { kind: "create-temporary" }, store, async value => { copied = value; });
+  assert.ok(await readFile(path));
+  assert.deepEqual(await readdir(cwd), []);
+  assert.equal(copied, cwd);
+  assert.ok((await store.read()).sessions[path]?.lastUsedAt);
 });
 
 test("cleanup protects active workspaces, rejects symlink swaps and deletes external JSONL", async t => {

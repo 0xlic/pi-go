@@ -39,7 +39,7 @@ test("POSIX directory matching remains case-sensitive", () => {
   assert.equal(isPathWithin("/home/alice/temp-other", "/home/alice/temp", "linux"), false);
 });
 
-test("temporary sessions aggregate below all projects without dated project entries", () => {
+test("temporary sessions stay first above pinned groups and projects", () => {
   const cwd = root + "/2026-01-01";
   const meta = emptyMetadata();
   meta.projects[cwd] = { pinned: true, alias: "旧临时项目", registered: true };
@@ -49,7 +49,8 @@ test("temporary sessions aggregate below all projects without dated project entr
   assert.deepEqual([...catalog.projects.keys()], ["/work/a"]);
   assert.equal(catalog.temporarySessionsGroup?.name, "临时会话");
   const vm = new ViewModel(catalog, cwd);
-  assert.deepEqual(vm.projectRows.slice(0, 2), [{ kind: "all" }, { kind: "temporary-sessions" }]);
+  assert.deepEqual(vm.projectRows.slice(0, 2), [{ kind: "temporary-sessions" }, { kind: "pinned-sessions" }]);
+  assert.ok(vm.projectRows.every(row => row.kind !== "all"));
   assert.equal(vm.selectedProject.kind, "temporary-sessions");
   assert.equal(vm.sessionRows.length, 2);
   assert.equal(catalog.sessions.get("/sessions/temp")?.cwd, cwd);
@@ -64,7 +65,7 @@ test("temporary sessions aggregate below all projects without dated project entr
   vm.catalog = buildCatalog([], meta, "/work/a");
   vm.refresh();
   assert.equal(vm.catalog.temporarySessionsGroup, undefined);
-  assert.ok(!vm.projectRows.some(row => row.kind === "temporary-sessions"));
+  assert.equal(vm.projectRows[0]?.kind, "temporary-sessions");
 });
 
 test("stale or unavailable temporary sessions do not create a virtual group", () => {

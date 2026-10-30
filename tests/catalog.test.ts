@@ -31,7 +31,9 @@ test("fixed rows, pin-first recency and filtering of pinned items", () => {
   meta.projects["/work/a"] = { pinned: true };
   meta.sessions["/sessions/a"] = { pinned: true };
   const vm = new ViewModel(buildCatalog(infos, meta, "/work/a"), "/work/a");
-  assert.deepEqual(vm.projectRows, [{ kind: "all" }, { kind: "project", id: "/work/a" }, { kind: "pinned-sessions" }, { kind: "project", id: "/work/b" }]);
+  assert.equal(vm.selectedProject.kind, "temporary-sessions");
+  assert.deepEqual(vm.projectRows, [{ kind: "temporary-sessions" }, { kind: "project", id: "/work/a" }, { kind: "pinned-sessions" }, { kind: "project", id: "/work/b" }]);
+  vm.selectProject({ kind: "project", id: "/work/a" });
   assert.deepEqual(vm.sessionRows, [{ kind: "session", key: "/sessions/a" }, { kind: "session", key: "/sessions/c" }]);
   vm.activePane = "sessions"; vm.setQuery("插件");
   assert.deepEqual(vm.sessionRows, [{ kind: "session", key: "/sessions/c" }]);
@@ -55,7 +57,7 @@ test("left searches only project paths and aliases; session titles and bodies do
     assert.deepEqual(vm.sessionRows, []);
   }
   vm.setQuery("");
-  vm.selectProject({ kind: "all" });
+  vm.selectProject({ kind: "project", id: "/work/a" });
   vm.activePane = "sessions";
   vm.setQuery("修搜");
   assert.deepEqual(vm.sessionRows, [{ kind: "session", key: "/sessions/a" }]);
@@ -77,7 +79,7 @@ test("unique filtered project is selected automatically; Tab immediately searche
   assert.equal(vm.sessionQuery, "插件");
 });
 
-test("empty results do not fall back to global sessions; clearing search restores all-project entry", () => {
+test("empty results stay empty; clearing search selects the first project", () => {
   const vm = new ViewModel(buildCatalog(infos, emptyMetadata(), "/work/a"), "/work/a");
   vm.setQuery("missing-project");
   assert.deepEqual(vm.projectRows, []);
@@ -87,8 +89,9 @@ test("empty results do not fall back to global sessions; clearing search restore
   assert.equal(vm.projectScroll, 0);
   assert.equal(vm.sessionScroll, 0);
   vm.togglePane(); vm.setQuery("   ");
-  assert.deepEqual(vm.projectRows[0], { kind: "all" });
-  assert.deepEqual(vm.selectedProject, { kind: "all" });
+  assert.deepEqual(vm.projectRows[0], { kind: "temporary-sessions" });
+  assert.deepEqual(vm.selectedProject, vm.projectRows[0]);
+  vm.selectProject({ kind: "project", id: "/work/b" });
   vm.togglePane(); vm.setQuery("登录");
   assert.equal(vm.sessionRows.length, 1);
 });
@@ -98,7 +101,8 @@ test("stable selection after pin reordering and explicit recency wins over file 
   meta.projects["/work/a"] = { lastUsedAt: 6 };
   const catalog = buildCatalog(infos, meta, "/work/a");
   assert.equal(catalog.projects.get("/work/a")?.lastUsedAt, 6);
-  const vm = new ViewModel(catalog, "/work/a"); vm.activePane = "sessions";
+  const vm = new ViewModel(catalog, "/work/a");
+  vm.selectProject({ kind: "project", id: "/work/a" }); vm.activePane = "sessions";
   const selected = vm.selectedSession;
   meta.sessions["/sessions/a"].pinned = true;
   vm.catalog = buildCatalog(infos, meta, "/work/a"); vm.refresh();
