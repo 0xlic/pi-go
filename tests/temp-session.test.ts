@@ -53,6 +53,9 @@ test("cleanup protects active workspaces, rejects symlink swaps and deletes exte
   assert.ok(parseTimestamp(workspace.split("/").at(-1)!));
   assert.equal(parseTimestamp("2026-02-31_00-00-00"), undefined);
   const seed = await createSessionFile(workspace);
+  // Flat JSONL at the sessions root is not returned by Pi's global scan.
+  const flatPath = join(root, "sessions", "flat.jsonl");
+  await writeFile(flatPath, await readFile(seed.path));
   const activePlan = await planCleanup(temporaryRoot(), null, [workspace]);
   assert.equal(activePlan.skippedActive, 1);
   const store = new MetadataStore(join(root, "state.json"));
@@ -63,8 +66,22 @@ test("cleanup protects active workspaces, rejects symlink swaps and deletes exte
   } as unknown as ExtensionCommandContext;
   await cleanTemporary(ctx, store);
   await assert.rejects(readFile(seed.path));
+  await assert.rejects(readFile(flatPath));
   await assert.rejects(readdir(workspace));
   assert.equal((await store.read()).sessions[seed.path], undefined);
+  // A previous cleanup may already have removed the workspace but left JSONL.
+  const orphan = join(temporaryRoot(), "2024-01-01_00-00-00");
+  const orphanSeed = await createSessionFile(orphan);
+  await store.visit(orphan, orphanSeed.path);
+  await cleanTemporary(ctx, store);
+  await assert.rejects(readFile(orphanSeed.path));
+  assert.equal((await store.read()).sessions[orphanSeed.path], undefined);
+  // Active history is protected even when its workspace is absent.
+  const activeSeed = await createSessionFile(orphan);
+  await cleanTemporary({ ...ctx, cwd: orphan } as ExtensionCommandContext, store);
+  assert.ok(await readFile(activeSeed.path));
+  await cleanTemporary({ ...ctx, sessionManager: { ...ctx.sessionManager, getSessionFile: () => activeSeed.path } } as ExtensionCommandContext, store);
+  assert.ok(await readFile(activeSeed.path));
   const path = join(temporaryRoot(), "2025-01-01_00-00-00");
   await mkdir(path);
   const plan = await planCleanup(temporaryRoot(), null, []);

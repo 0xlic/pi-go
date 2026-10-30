@@ -32,7 +32,14 @@ export async function createDirectory(root = temporaryRoot()): Promise<string> {
 }
 export async function canonical(path: string): Promise<string> {
   try { return await realpath(path); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return resolve(path); throw error; }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    // Resolve existing ancestors too, e.g. macOS /var -> /private/var,
+    // so missing workspaces compare correctly with the canonical temp root.
+    const absolute = resolve(path);
+    const parent = dirname(absolute);
+    return parent === absolute ? absolute : join(await canonical(parent), basename(absolute));
+  }
 }
 export const cleanupRanges = [
   { label: "最近一天（24小时）", days: 1 }, { label: "最近一周（7天）", days: 7 },
