@@ -12,10 +12,11 @@ import type { GoAction } from "./types.ts";
 import { GoSelector } from "./ui/go-selector.ts";
 import { loadWithProgress } from "./ui/load-with-progress.ts";
 
-export interface StartupTask { id: number; controller: AbortController }
+export interface StartupTask { id: number; controller: AbortController; action?: "panel" | "temporary" }
 export interface RuntimeGuard {
   active: boolean;
   startupConsumed: boolean;
+  startupAction?: "panel" | "temporary" | "none";
   startupTask?: StartupTask;
   startupSequence?: number;
   activeOwner?: object;

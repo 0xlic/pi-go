@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { test } from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { registerStartup } from "../src/startup-adapter.ts";
 import type { RuntimeGuard } from "../src/controller.ts";
 
-function harness() {
+function harness(g = true, cwd = homedir()) {
   const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => void>();
   const sent: unknown[] = [];
   const api = { on: (event: string, handler: (event: unknown, ctx: ExtensionContext) => void) => handlers.set(event, handler),
-    getFlag: (name: string) => name === "g", sendUserMessage: (...args: unknown[]) => sent.push(args) } as unknown as ExtensionAPI;
-  const ctx = { mode: "tui" } as ExtensionContext;
+    getFlag: (name: string) => name === "g" && g, sendUserMessage: (...args: unknown[]) => sent.push(args) } as unknown as ExtensionAPI;
+  const ctx = { mode: "tui", cwd } as ExtensionContext;
   return { api, handlers, sent, ctx };
 }
 
@@ -62,6 +64,53 @@ test("replacement retries unconsumed intent and aborts the previous runtime task
   assert.deepEqual(third.sent, [["/go __pi_go_startup:3", { expandPromptTemplates: true }]]);
   assert.equal(guard.startupTask?.controller.signal.aborted, false);
   third.handlers.get("session_shutdown")!({}, third.ctx);
+});
+
+test("Home startup without --g schedules temporary creation once", async () => {
+  const h = harness(false), guard: RuntimeGuard = { active: false, startupConsumed: false };
+  registerStartup(h.api, guard);
+  h.handlers.get("session_start")!({}, h.ctx);
+  assert.equal(guard.startupTask?.action, "temporary");
+  await sleep(10);
+  assert.deepEqual(h.sent, [["/go __pi_go_startup:1", { expandPromptTemplates: true }]]);
+  guard.startupConsumed = true;
+  h.handlers.get("session_shutdown")!({}, h.ctx);
+  const next = harness(false);
+  registerStartup(next.api, guard);
+  next.handlers.get("session_start")!({}, next.ctx);
+  await sleep(10);
+  assert.equal(next.sent.length, 0);
+});
+
+test("--g in Home schedules only the panel", async () => {
+  const h = harness(), guard: RuntimeGuard = { active: false, startupConsumed: false };
+  registerStartup(h.api, guard);
+  h.handlers.get("session_start")!({}, h.ctx);
+  assert.equal(guard.startupTask?.action, "panel");
+  h.handlers.get("session_shutdown")!({}, h.ctx);
+});
+
+test("project startup does not auto-create, even after switching to Home", async () => {
+  const guard: RuntimeGuard = { active: false, startupConsumed: false };
+  const first = harness(false, join(homedir(), "project"));
+  registerStartup(first.api, guard);
+  first.handlers.get("session_start")!({}, first.ctx);
+  first.handlers.get("session_shutdown")!({}, first.ctx);
+  const next = harness(false);
+  registerStartup(next.api, guard);
+  next.handlers.get("session_start")!({}, next.ctx);
+  await sleep(10);
+  assert.equal(first.sent.length, 0);
+  assert.equal(next.sent.length, 0);
+});
+
+test("Home startup in RPC without --g is unchanged", async () => {
+  const h = harness(false), guard: RuntimeGuard = { active: false, startupConsumed: false };
+  registerStartup(h.api, guard);
+  h.handlers.get("session_start")!({}, { ...h.ctx, mode: "rpc" });
+  await sleep(10);
+  assert.equal(h.sent.length, 0);
+  assert.equal(guard.startupAction, "none");
 });
 
 test("RPC does not open a terminal custom component", async () => {

@@ -5,6 +5,7 @@ import { openGo, type RuntimeGuard } from "./src/controller.ts";
 import { MetadataStore } from "./src/metadata-store.ts";
 import { registerStartup, STARTUP_ARGUMENT } from "./src/startup-adapter.ts";
 import { normalizePath } from "./src/path-utils.ts";
+import { executeAction } from "./src/session-gateway.ts";
 
 // A replacement or /reload creates a new extension instance; keep only process-level guards here.
 const guardKey = Symbol.for("pi-go.runtime-guard.v1");
@@ -18,7 +19,15 @@ export default function piGo(pi: ExtensionAPI): void {
     if (args.startsWith(STARTUP_ARGUMENT)) {
       const task = guard.startupTask;
       if (!task || args !== `${STARTUP_ARGUMENT}${task.id}` || task.controller.signal.aborted || guard.startupConsumed) return;
-      await openGo(ctx, store, guard, task);
+      if (task.action === "temporary") {
+        await ctx.waitForIdle();
+        if (task.controller.signal.aborted || guard.startupConsumed) return;
+        // Consume before replacement, so cancellation or /reload cannot create another workspace.
+        guard.startupConsumed = true;
+        await executeAction(ctx, { kind: "create-temporary" }, store, async () => {});
+      } else {
+        await openGo(ctx, store, guard, task);
+      }
     } else {
       await openGo(ctx, store, guard);
     }
